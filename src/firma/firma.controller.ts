@@ -6,5 +6,4 @@ import { FileFieldsInterceptor } from '@nestjs/platform-express';
 export class FirmaController {
   constructor(private readonly firmaService: FirmaService) {}
 
-
 }
