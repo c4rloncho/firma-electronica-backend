@@ -1,73 +1,75 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="200" alt="Nest Logo" /></a>
-</p>
+# Aplicación Web de Firma Electrónica para la Municipalidad de Monte Patria
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+<div align="center">
+<img src="https://nestjs.com/img/logo-small.svg" width="250" >
+Desarrollado con NestJS
+</div>
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://coveralls.io/github/nestjs/nest?branch=master" target="_blank"><img src="https://coveralls.io/repos/github/nestjs/nest/badge.svg?branch=master#9" alt="Coverage" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## 📑 Descripción General del Proyecto
 
-## Description
+Esta aplicación web facilita la gestión de firmas electrónicas avanzadas para la Municipalidad de Monte Patria. Integra la API FirmaGob del gobierno chileno y está construida sobre NestJS, ofreciendo una solución robusta y eficiente para la administración municipal.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+### 🌟 Características Principales
 
-## Installation
+- 📝 Integración seamless con la API FirmaGob
+- 📁 Sistema de carga y gestión de documentos
+- 🔐 Autenticación y autorización de usuarios
+- ✅ Verificación de firmas
+- 📊 Registro detallado de auditoría para documentos firmados
+
+## 🛠️ Tecnologías Utilizadas
+
+| Tecnología | Descripción |
+|------------|-------------|
+| [NestJS](https://nestjs.com/) | Framework progresivo de Node.js para aplicaciones servidor escalables |
+| [API FirmaGob](https://firma.digital.gob.cl/) | API oficial de firma electrónica del gobierno chileno |
+
+## 📋 Requisitos Previos
+
+Asegúrese de contar con:
+
+- Node.js (versión 14 o posterior)
+- Credenciales de acceso para la API FirmaGob
+
+## 🚀 Instalación
+
+1. **Clone el repositorio:**
+   ```bash
+   git clone https://github.com/c4rloncho/firma-electronica-backend.git
+   ```
+
+2. **Navegue al directorio del proyecto:**
+   ```bash
+   cd firma-electronica-backend
+   ```
+
+3. **Instale las dependencias:**
+   ```bash
+   npm install
+   ```
+
+4. **Configure las variables de entorno:**
+   
+   Cree un archivo `.env` en el directorio raíz con el siguiente contenido:
+   ```env
+   API_TOKEN_KEY=su_clave_proporcionada
+   JWT_SECRET=su_secreto_api_proporcionada
+   API_URL=pagina_de_la_api
+   ```
+
+## ▶️ Ejecución de la Aplicación
+
+Para iniciar la aplicación en modo desarrollo:
 
 ```bash
-$ npm install
+npm run start:dev
 ```
 
-## Running the app
 
-```bash
-# development
-$ npm run start
+<div align="center">
 
-# watch mode
-$ npm run start:dev
+**Desarrollado y mantenido por la Municipalidad de Monte Patria**
 
-# production mode
-$ npm run start:prod
-```
+<img src="https://permisodecirculacion.cl/wp-content/uploads/2022/01/MONTE.jpg" width=200>
 
-## Test
-
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-```
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://kamilmysliwiec.com)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](LICENSE).
+</div>
