@@ -65,16 +65,11 @@ Para iniciar la aplicación en modo desarrollo:
 npm run start:dev
 ```
 
-## 📄 Licencia
-
-[Especifique aquí la licencia bajo la cual se libera este proyecto]
-
----
 
 <div align="center">
 
 **Desarrollado y mantenido por la Municipalidad de Monte Patria**
 
-![Logo Municipalidad](https://api.placeholder.com/150x150?text=Logo+Municipalidad)
+![Logo Municipalidad](https://permisodecirculacion.cl/wp-content/uploads/2022/01/MONTE.jpg)
 
 </div>
