@@ -70,6 +70,6 @@ npm run start:dev
 
 **Desarrollado y mantenido por la Municipalidad de Monte Patria**
 
-![Logo Municipalidad](https://permisodecirculacion.cl/wp-content/uploads/2022/01/MONTE.jpg)
+<img src="https://permisodecirculacion.cl/wp-content/uploads/2022/01/MONTE.jpg" width=200>
 
 </div>
