@@ -64,7 +64,6 @@ export class FirmaService {
     // Tamaño fijo para el logo
     const width = 130; // Ancho fijo del logo
     const height = 80; // Alto fijo del logo
-    //dimension de una pagina oficio  8.5 x 14 pulgadas.
     const pageHeight = 1008;
     const pageWidth = 612;
   

@@ -27,6 +27,7 @@
     "@nestjs/jwt": "^10.2.0",
     "@nestjs/mapped-types": "*",
     "@nestjs/platform-express": "^10.0.0",
+    "@nestjs/typeorm": "^10.0.2",
     "@types/sharp": "^0.31.1",
     "canvas": "^2.11.2",
     "class-transformer": "^0.5.1",
@@ -35,9 +36,11 @@
     "express": "^4.21.0",
     "firmaelectronica-back": "file:",
     "jsonwebtoken": "^9.0.2",
+    "pg": "^8.13.0",
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.8.1",
-    "sharp": "^0.33.5"
+    "sharp": "^0.33.5",
+    "typeorm": "^0.3.20"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",
