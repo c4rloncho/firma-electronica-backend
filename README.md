@@ -24,7 +24,6 @@ La aplicación permite a los usuarios firmar documentos electrónicamente utiliz
 Antes de comenzar, asegúrese de cumplir con los siguientes requisitos:
 
 - Node.js (versión 14 o posterior)
-- npm (generalmente viene con Node.js)
 - Credenciales de acceso para la API FirmaGob
 
 ## Instalación
