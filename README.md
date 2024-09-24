@@ -1,67 +1,83 @@
 # Aplicación Web de Firma Electrónica para la Municipalidad de Monte Patria
 
-Este proyecto es una aplicación web para firmas electrónicas avanzadas, desarrollada para la Municipalidad de Monte Patria. Utiliza la API proporcionada por el gobierno chileno (FirmaGob) y está construida usando NestJS.
+<div align="center">
 
-## Descripción General del Proyecto
+![NestJS Logo](https://nestjs.com/img/logo-small.svg)
 
-La aplicación permite a los usuarios firmar documentos electrónicamente utilizando firmas electrónicas avanzadas, agilizando los procesos administrativos dentro de la municipalidad.
+*Desarrollado con NestJS*
 
-### Características Principales
+</div>
 
-- Integración con la API FirmaGob para firmas electrónicas
-- Carga y gestión de documentos
-- Autenticación y autorización de usuarios
-- Verificación de firmas
-- Registro de auditoría para documentos firmados
+## 📑 Descripción General del Proyecto
 
-## Tecnologías Utilizadas
+Esta aplicación web facilita la gestión de firmas electrónicas avanzadas para la Municipalidad de Monte Patria. Integra la API FirmaGob del gobierno chileno y está construida sobre NestJS, ofreciendo una solución robusta y eficiente para la administración municipal.
 
-- [NestJS](https://nestjs.com/) - Un marco de trabajo progresivo de Node.js para crear aplicaciones del lado del servidor eficientes y escalables
-- [API FirmaGob](https://firma.digital.gob.cl/) - API de firma electrónica del gobierno chileno
+### 🌟 Características Principales
 
-## Requisitos Previos
+- 📝 Integración seamless con la API FirmaGob
+- 📁 Sistema de carga y gestión de documentos
+- 🔐 Autenticación y autorización de usuarios
+- ✅ Verificación de firmas
+- 📊 Registro detallado de auditoría para documentos firmados
 
-Antes de comenzar, asegúrese de cumplir con los siguientes requisitos:
+## 🛠️ Tecnologías Utilizadas
+
+| Tecnología | Descripción |
+|------------|-------------|
+| [NestJS](https://nestjs.com/) | Framework progresivo de Node.js para aplicaciones servidor escalables |
+| [API FirmaGob](https://firma.digital.gob.cl/) | API oficial de firma electrónica del gobierno chileno |
+
+## 📋 Requisitos Previos
+
+Asegúrese de contar con:
 
 - Node.js (versión 14 o posterior)
 - Credenciales de acceso para la API FirmaGob
 
-## Instalación
+## 🚀 Instalación
 
-1. Clone el repositorio:
-   ```
+1. **Clone el repositorio:**
+   ```bash
    git clone https://github.com/c4rloncho/firma-electronica-backend.git
    ```
 
-2. Navegue al directorio del proyecto:
-   ```
+2. **Navegue al directorio del proyecto:**
+   ```bash
    cd firma-electronica-backend
    ```
 
-3. Instale las dependencias:
-   ```
+3. **Instale las dependencias:**
+   ```bash
    npm install
    ```
 
-4. Cree un archivo `.env` en el directorio raíz y agregue sus credenciales de la API FirmaGob:
-   ```
+4. **Configure las variables de entorno:**
+   
+   Cree un archivo `.env` en el directorio raíz con el siguiente contenido:
+   ```env
    API_TOKEN_KEY=su_clave_proporcionada
    JWT_SECRET=su_secreto_api_proporcionada
-   API_URL= pagina_de_la_api
+   API_URL=pagina_de_la_api
    ```
 
-## Ejecución de la Aplicación
+## ▶️ Ejecución de la Aplicación
 
-Para ejecutar la aplicación en modo de desarrollo:
+Para iniciar la aplicación en modo desarrollo:
 
-```
+```bash
 npm run start:dev
 ```
 
-## Licencia
+## 📄 Licencia
 
-[Especifique la licencia bajo la cual se libera este proyecto]
+[Especifique aquí la licencia bajo la cual se libera este proyecto]
 
+---
 
+<div align="center">
 
-Este proyecto es desarrollado y mantenido por la Municipalidad de Monte Patria.
+**Desarrollado y mantenido por la Municipalidad de Monte Patria**
+
+![Logo Municipalidad](https://api.placeholder.com/150x150?text=Logo+Municipalidad)
+
+</div>
