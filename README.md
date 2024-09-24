@@ -1,11 +1,8 @@
 # Aplicación Web de Firma Electrónica para la Municipalidad de Monte Patria
 
 <div align="center">
-
-![NestJS Logo](https://nestjs.com/img/logo-small.svg)
-
-*Desarrollado con NestJS*
-
+<img src="https://nestjs.com/img/logo-small.svg" width="100" alt="NestJS Logo">
+Desarrollado con NestJS
 </div>
 
 ## 📑 Descripción General del Proyecto
