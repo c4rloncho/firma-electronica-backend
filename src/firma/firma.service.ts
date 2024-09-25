@@ -97,11 +97,11 @@ export class FirmaService {
   async signdocument(
     input: SignDocumentDto,
     imageBuffer: Express.Multer.File,
-    document: Document,
+    fileBuffer: Express.Multer.File,
   ) {
     const token = this.generateToken(input);
 
-    const filePath = path.join(process.cwd(), document.filePath);
+    const filePath = path.join(process.cwd(), fileBuffer.buffer);
     const { content, checksum } = await this.prepareFile(filePath);
     const altura = input.heightImage ? parseInt(input.heightImage.toString(), 10) : 0;
     const layout = await this.createAgileSignerConfig(imageBuffer, altura);
