@@ -4,6 +4,7 @@ import { FirmaController } from './firma.controller';
 import { JwtModule } from '@nestjs/jwt';
 import { HttpModule } from '@nestjs/axios';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { DocumentoModule } from 'src/documento/documento.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       }),
       inject: [ConfigService],
     }),
+    DocumentoModule,
   ],
   controllers: [FirmaController],
   providers: [FirmaService],

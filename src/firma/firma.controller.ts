@@ -7,25 +7,32 @@ import { SingDocumentDto } from './dto/generar-token.dto';
 export class FirmaController {
   constructor(private readonly firmaService: FirmaService) {}
 
+  
   @Post('sign')
   @UseInterceptors(FileFieldsInterceptor([
-    { name: 'file', maxCount: 1 },
     { name: 'image', maxCount: 1 }
   ]))
   async generarfirma(
-    @UploadedFiles() files: { file?: Express.Multer.File[], image?: Express.Multer.File[] },
+    @UploadedFiles() files: { image?: Express.Multer.File[] },
     @Body() input: SingDocumentDto
   ) {
-    
-    if (!files.file || !files.image) {
-      throw new HttpException('Se requieren tanto el documento como la imagen de firma', HttpStatus.BAD_REQUEST);
+    if (!files.image) {
+      throw new HttpException('Se requiere la imagen de firma', HttpStatus.BAD_REQUEST);
     }
 
-    const documentFile = files.file[0];
+    if (!input.documentId) {
+      throw new HttpException('Se requiere el ID del documento', HttpStatus.BAD_REQUEST);
+    }
+
     const signatureImage = files.image[0];
+    const documentId = parseInt(input.documentId, 10);
+
+    if (isNaN(documentId)) {
+      throw new HttpException('El ID del documento debe ser un número válido', HttpStatus.BAD_REQUEST);
+    }
 
     try {
-      return await this.firmaService.signdocument(input, documentFile, signatureImage);
+      return await this.firmaService.signdocument(input, documentId, signatureImage);
     } catch (error) {
       throw new HttpException(
         `Error al firmar el documento: ${error.message}`,

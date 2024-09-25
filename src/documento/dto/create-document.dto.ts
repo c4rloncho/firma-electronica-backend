@@ -6,11 +6,7 @@ export class CreateDocumentDto {
     @IsString()
     @IsNotEmpty()
     name: string;
-  
-    @IsString()
-    @IsNotEmpty()
-    filePath: string;
-  
+
     @IsArray()
     @ValidateNested({ each: true })
     @ArrayMinSize(1)

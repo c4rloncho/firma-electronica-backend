@@ -1,4 +1,4 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
 import { SingDocumentDto } from './dto/generar-token.dto';
 import { Sign } from 'crypto';
 import { JwtService } from '@nestjs/jwt';
@@ -8,6 +8,7 @@ import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { DocumentoService } from 'src/documento/documento.service';
 
 
 
@@ -39,20 +40,9 @@ export class FirmaService {
     private readonly jwtservice: JwtService,
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
+    private readonly documentoService:DocumentoService
   ) {}
 
-
-  
-  private async prepareFile(
-    file: Express.Multer.File,
-  ): Promise<{ content: string; checksum: string }> {
-    const content = file.buffer.toString('base64');
-    const checksum = crypto
-      .createHash('sha256')
-      .update(file.buffer)
-      .digest('hex');
-    return { content, checksum };
-  }
   private async createAgileSignerConfig(
     imageBuffer: Express.Multer.File,
     heightImage: number,
@@ -96,6 +86,18 @@ export class FirmaService {
       </Application>
     </AgileSignerConfig>`;
   }
+  
+  private async prepareFile(
+    filePath: string,
+  ): Promise<{ content: string; checksum: string }> {
+    const fileBuffer = await fs.readFile(filePath);
+    const content = fileBuffer.toString('base64');
+    const checksum = crypto
+      .createHash('sha256')
+      .update(fileBuffer)
+      .digest('hex');
+    return { content, checksum };
+  }
 
   private generateToken(input: SingDocumentDto) {
     const now = new Date();
@@ -111,13 +113,19 @@ export class FirmaService {
       expiration: formattedExpiration,
     });
   }
+
   async signdocument(
     input: SingDocumentDto,
-    fileBuffer: Express.Multer.File,
+    documentId: number,
     imageBuffer: Express.Multer.File,
   ) {
     const token = this.generateToken(input);
-    const { content, checksum } = await this.prepareFile(fileBuffer);
+    const document = await this.documentoService.getById(documentId);
+    if (!document) {
+      throw new NotFoundException(`Documento con ID ${documentId} no encontrado`);
+    }
+    const filePath = path.join(process.cwd(), document.filePath);
+    const { content, checksum } = await this.prepareFile(filePath);
     const altura = parseInt(input.heightImage, 10);
     const layout = await this.createAgileSignerConfig(imageBuffer, altura);
     const payload = {
@@ -164,6 +172,7 @@ export class FirmaService {
       );
     }
   }
+
   private processResponse(responseData: SignResponse): {
     signedFiles: {
       content: Buffer;
@@ -195,6 +204,7 @@ export class FirmaService {
       idSolicitud: responseData.idSolicitud,
     };
   }
+
   private async saveSignedFiles(signedFiles: any[]): Promise<string[]> {
     const savedPaths: string[] = [];
     for (let i = 0; i < signedFiles.length; i++) {
@@ -207,9 +217,8 @@ export class FirmaService {
         day: '2-digit',
         hour: '2-digit',
         minute: '2-digit'
-    });
+      });
       const fileName = `documento_firmado_${fechaHora}_${i}.pdf`;
-      console.log(fechaHora)
       const filePath = path.join(
         'C:',
         'Users',

@@ -10,7 +10,7 @@ export class Document {
   name: string;
 
   @Column()
-  filePath: string;
+  fileName: string;
 
   @OneToMany(() => DocumentSignature, signature => signature.document)
   signatures: DocumentSignature[];

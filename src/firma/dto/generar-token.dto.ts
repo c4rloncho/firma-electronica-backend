@@ -23,6 +23,10 @@ export class SingDocumentDto{
     @IsString()
     @IsOptional()
     nombreFirmante:string
+    
+    @IsNotEmpty()
+    @IsString()
+    documentId: string
 
     @IsNumber()
     @IsOptional()

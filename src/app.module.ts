@@ -2,11 +2,13 @@ import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { FirmaModule } from './firma/firma.module';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { FuncionarioModule } from './funcionario/funcionario.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DocumentoModule } from './documento/documento.module';
 import config from './database/config';
+import { join } from 'path';
+import { ServeStaticModule } from '@nestjs/serve-static';
 
 @Module({
   imports: [
@@ -14,7 +16,9 @@ import config from './database/config';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', 'uploads'),
+    }),
     FirmaModule,
     FuncionarioModule,
     DocumentoModule,
