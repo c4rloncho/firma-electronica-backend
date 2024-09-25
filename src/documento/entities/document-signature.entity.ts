@@ -1,6 +1,11 @@
 import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import { Document } from './document.entity';
 
+export enum SignerType {
+  VISADOR = "visador",
+  FIRMADOR = "firmador"
+}
+
 @Entity()
 export class DocumentSignature {
   @PrimaryGeneratedColumn()
@@ -14,6 +19,13 @@ export class DocumentSignature {
 
   @Column()
   signerRut: string;
+
+  @Column({
+    type: "enum",
+    enum: SignerType,
+    default: SignerType.FIRMADOR
+  })
+  signerType: SignerType;
 
   @Column({ nullable: true })
   signedAt: Date;

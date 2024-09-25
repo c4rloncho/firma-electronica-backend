@@ -1,5 +1,4 @@
 import { HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
-import { SingDocumentDto } from './dto/generar-token.dto';
 import { Sign } from 'crypto';
 import { JwtService } from '@nestjs/jwt';
 import * as crypto from 'crypto';
@@ -9,38 +8,19 @@ import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { DocumentoService } from 'src/documento/documento.service';
-
-
-
-
-interface SignedFile {
-  content: string;
-  status: string;
-  contentType: string;
-  description: string | null;
-  checksum_original: string;
-  checksum_signed: string;
-  documentStatus: string;
-}
-
-interface SignResponse {
-  files: SignedFile[];
-  metadata: {
-    otpExpired: boolean;
-    filesSigned: number;
-    signedFailed: number;
-    objectsReceived: number;
-  };
-  idSolicitud: number;
-}
-
+import { Document } from 'src/documento/entities/document.entity';
+import { SignResponse, SignedFile } from 'src/interfaces/firma.interfaces';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import * as fse from 'fs-extra';
+import { SignDocumentDto } from 'src/documento/dto/sign-document.dto';
 @Injectable()
 export class FirmaService {
   constructor(
     private readonly jwtservice: JwtService,
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
-    private readonly documentoService:DocumentoService
+    private readonly documentoService:DocumentoService,
   ) {}
 
   private async createAgileSignerConfig(
@@ -99,7 +79,7 @@ export class FirmaService {
     return { content, checksum };
   }
 
-  private generateToken(input: SingDocumentDto) {
+  private generateToken(input: SignDocumentDto) {
     const now = new Date();
     const expirationDate = new Date(now.getTime() + 30 * 60 * 1000); // 25 minutos desde ahora
     const formattedExpiration = expirationDate
@@ -115,18 +95,15 @@ export class FirmaService {
   }
 
   async signdocument(
-    input: SingDocumentDto,
-    documentId: number,
+    input: SignDocumentDto,
     imageBuffer: Express.Multer.File,
+    document: Document,
   ) {
     const token = this.generateToken(input);
-    const document = await this.documentoService.getById(documentId);
-    if (!document) {
-      throw new NotFoundException(`Documento con ID ${documentId} no encontrado`);
-    }
+
     const filePath = path.join(process.cwd(), document.filePath);
     const { content, checksum } = await this.prepareFile(filePath);
-    const altura = parseInt(input.heightImage, 10);
+    const altura = input.heightImage ? parseInt(input.heightImage.toString(), 10) : 0;
     const layout = await this.createAgileSignerConfig(imageBuffer, altura);
     const payload = {
       api_token_key: this.configService.get<string>('API_TOKEN_KEY'),
@@ -158,12 +135,14 @@ export class FirmaService {
       );
       const processedResponse = this.processResponse(response.data);
       const savedPaths = await this.saveSignedFiles(
-        processedResponse.signedFiles,
+        processedResponse.signedFiles, document.fileName
       );
-
       return {
-        ...processedResponse,
-        savedPaths,
+        success: true,
+        signatureInfo: {
+          ...processedResponse,
+          savedPaths,
+        },
       };
     } catch (error) {
       throw new HttpException(
@@ -171,7 +150,7 @@ export class FirmaService {
         error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
-  }
+  }  
 
   private processResponse(responseData: SignResponse): {
     signedFiles: {
@@ -205,32 +184,31 @@ export class FirmaService {
     };
   }
 
-  private async saveSignedFiles(signedFiles: any[]): Promise<string[]> {
+ 
+  
+  private async saveSignedFiles(signedFiles: any[], documentFileName: string): Promise<string[]> {
     const savedPaths: string[] = [];
     for (let i = 0; i < signedFiles.length; i++) {
       const file = signedFiles[i];
-      const fechaHora = new Date().toLocaleString("es-CL", {
-        timeZone: "America/Santiago",
-        hour12: false,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-      const fileName = `documento_firmado_${fechaHora}_${i}.pdf`;
+      
+      // Construye la ruta al archivo original en la carpeta 'uploads' del proyecto
       const filePath = path.join(
-        'C:',
-        'Users',
-        'qarlo',
-        'Documents',
-        'practica',
-        'firmados',
-        fileName,
+        process.cwd(), // Directorio raíz del proyecto
+        'uploads',
+        documentFileName
       );
+  
+      // Reemplaza el contenido del archivo original con el archivo firmado
       await fs.writeFile(filePath, file.content);
       savedPaths.push(filePath);
     }
     return savedPaths;
   }
+
+
+
+
+
+
+
 }

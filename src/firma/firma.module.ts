@@ -5,10 +5,14 @@ import { JwtModule } from '@nestjs/jwt';
 import { HttpModule } from '@nestjs/axios';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { DocumentoModule } from 'src/documento/documento.module';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { Document } from 'src/documento/entities/document.entity';
+import { DocumentSignature } from 'src/documento/entities/document-signature.entity';
 
 @Module({
   imports: [
     HttpModule,
+    TypeOrmModule.forFeature([Document,DocumentSignature]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
@@ -17,9 +21,9 @@ import { DocumentoModule } from 'src/documento/documento.module';
       }),
       inject: [ConfigService],
     }),
-    DocumentoModule,
   ],
   controllers: [FirmaController],
   providers: [FirmaService],
+  exports:[FirmaService],
 })
 export class FirmaModule {}

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -44,13 +45,25 @@ export class DocumentoController {
   ) {
     return this.documentoService.createDocument(createDocumentDto, file);
   }
-
+  
   @Post('sign')
-  async signDocumnet(@Body()input:SignDocumentDto){
+  @UseInterceptors(FileInterceptor('image'))
+  async signDocument(
+    @Body() signDocumentDto: SignDocumentDto,
+    @UploadedFile() imageFile: Express.Multer.File
+  ) {
+    if (!imageFile) {
+      throw new BadRequestException('La imagen de firma es requerida');
+    }
+
     try {
-      return this.documentoService.signDocument(input)
+      const result = await this.documentoService.signDocument(signDocumentDto, imageFile);
+      return {
+        message: 'Documento firmado exitosamente',
+        data: result
+      };
     } catch (error) {
-      throw error;
+      throw new BadRequestException(`Error al firmar el documento: ${error.message}`);
     }
   }
 
@@ -74,6 +87,14 @@ export class DocumentoController {
       throw new InternalServerErrorException(
         'Un error ocurrió en la búsqueda del documento',
       );
+    }
+  }
+  @Get('get-pending/:rut')
+  async getFirmasPendientePorFuncionario(@Param('rut')rut:string){
+    try {
+      return this.documentoService.buscarFirmasPendientes(rut);
+    } catch (error) {
+      
     }
   }
 }
