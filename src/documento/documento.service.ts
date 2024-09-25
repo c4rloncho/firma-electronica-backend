@@ -11,6 +11,8 @@ import { DocumentSignature, SignerType } from './entities/document-signature.ent
 import { SignerDto } from './dto/signer.dto';
 import { SignDocumentDto } from './dto/sign-document.dto';
 import { FirmaService } from 'src/firma/firma.service';
+import * as fs from 'fs/promises';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class DocumentoService {
@@ -49,7 +51,6 @@ export class DocumentoService {
     });
   }
 
-
   async signDocument(input: SignDocumentDto, imageBuffer: Express.Multer.File) {
     const { documentId, run } = input;
     const document = await this.documentRepository.findOne({
@@ -70,10 +71,16 @@ export class DocumentoService {
     }
 
     this.validateSignatureOrder(document.signatures, pendingSignature);
-
     try {
+      const { content, checksum } = await this.prepareFile(document.fileName);
+      
       // Llamada al servicio de firma
-      const firmaResult = await this.firmaService.signdocument(input, imageBuffer,document);
+      const firmaResult = await this.firmaService.signdocument({
+        ...input,
+        documentContent: content,
+        documentChecksum: checksum
+      }, imageBuffer);
+
       if (firmaResult.success) {
         pendingSignature.isSigned = true;
         pendingSignature.signedAt = new Date();
@@ -102,10 +109,12 @@ export class DocumentoService {
     }
     return {
       ...document,
-      filePath: `./uploads/${document.fileName}` // Asumiendo que tienes un campo fileName en tu entidad
+      filePath: `./uploads/${document.fileName}`
     };
   } 
+
   private validateSignatureOrder(signatures: DocumentSignature[], currentSignature: DocumentSignature) {
+
     const previousSignatures = signatures.filter(
       (s) => s.signerOrder < currentSignature.signerOrder && s.signerType === currentSignature.signerType
     );
@@ -116,6 +125,7 @@ export class DocumentoService {
 
     if (currentSignature.signerType === SignerType.FIRMADOR) {
       const allVisadores = signatures.filter((s) => s.signerType === SignerType.VISADOR);
+      console.log(allVisadores.length)
       if (allVisadores.some((s) => !s.isSigned)) {
         throw new BadRequestException('Todos los visadores deben firmar antes que los firmadores');
       }
@@ -130,24 +140,34 @@ export class DocumentoService {
     }
   }
 
-    //retorna informacion de los documentos y la id por si el usuario necesita descargarlos
-    async buscarFirmasPendientes(rut: string): Promise<{ id: number; name: string; fileName: string }[]> {
-      const documentos = await this.documentRepository.find({
-        select: ['id', 'name', 'fileName'],
-        where: {
-          signatures: {
-            signerRut: rut,
-            isSigned: false
-          },
-          isFullySigned: false
+  async buscarFirmasPendientes(rut: string): Promise<{ id: number; name: string; fileName: string }[]> {
+    const documentos = await this.documentRepository.find({
+      select: ['id', 'name', 'fileName'],
+      where: {
+        signatures: {
+          signerRut: rut,
+          isSigned: false
         },
-        relations: ['signatures']
-      }); 
-      //solo muestra los que al usuario le falta firmar
-      return documentos.map(doc => ({
-        id: doc.id,
-        name: doc.name,
-        fileName: doc.fileName
-      }));
-    }
+        isFullySigned: false
+      },
+      relations: ['signatures']
+    }); 
+    return documentos.map(doc => ({
+      id: doc.id,
+      name: doc.name,
+      fileName: doc.fileName
+    }));
+  }
+
+  private async prepareFile(fileName: string): Promise<{ content: string, checksum: string }> {
+    const filePath = `./uploads/${fileName}`;
+    const fileBuffer = await fs.readFile(filePath);
+    const content = fileBuffer.toString('base64');
+    const checksum = this.calculateChecksum(fileBuffer);
+    return { content, checksum };
+  }
+
+  private calculateChecksum(buffer: Buffer): string {
+    return crypto.createHash('md5').update(buffer).digest('hex');
+  }
 }
