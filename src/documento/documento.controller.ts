@@ -24,11 +24,12 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import { ConfigService } from '@nestjs/config';
-import { createReadStream } from 'fs';
+import { createReadStream, existsSync } from 'fs';
 import { Response } from 'express';
 
 @Controller('document')
 export class DocumentoController {
+  
   private readonly logger = new Logger(DocumentoController.name);
   constructor(
     private readonly documentoService: DocumentoService,
@@ -36,12 +37,30 @@ export class DocumentoController {
   ) {}
 
   @Post('create')
-  @UseInterceptors(FileInterceptor('file', DocumentoService.getStorageOptions()))
+  @UseInterceptors(FileInterceptor('file'))
   async createDocument(
     @Body() createDocumentDto: CreateDocumentDto,
     @UploadedFile() file: Express.Multer.File,
   ) {
-    return this.documentoService.createDocument(createDocumentDto, file);
+    if (!file) {
+      throw new HttpException('No se ha proporcionado ningún archivo', HttpStatus.BAD_REQUEST);
+    }
+
+    try {
+      const document = await this.documentoService.createDocument(createDocumentDto, file);
+      return {
+        message: 'Documento creado exitosamente',
+        document
+      };
+    } catch (error) {
+      console.error('Error al crear el documento:', error);
+
+      if (error.message.includes('Failed to save file')) {
+        throw new HttpException('Error al guardar el archivo', HttpStatus.INTERNAL_SERVER_ERROR);
+      } else {
+        throw new HttpException('Error al crear el documento', HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+    }
   }
   
   @Post('sign')
@@ -74,17 +93,36 @@ export class DocumentoController {
       const document = await this.documentoService.getById(id);
       const filePath = join(process.cwd(), document.filePath);
   
+      // Verificar si el archivo existe
+      if (!existsSync(filePath)) {
+        throw new NotFoundException(`El archivo ${document.fileName} no se encuentra en el servidor.`);
+      }
+
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `inline; filename="${document.fileName}"`);
   
       createReadStream(filePath).pipe(res);
     } catch (error) {
-      if (error instanceof NotFoundException) {
+      if (error instanceof BadRequestException) {
         throw error;
+      } else if (error instanceof NotFoundException) {
+        throw error;
+      } else if (error instanceof InternalServerErrorException) {
+        throw error;
+      } else {
+        throw new InternalServerErrorException(
+          `Un error inesperado ocurrió al procesar la solicitud: ${error.message}`
+        );
       }
-      throw new InternalServerErrorException(
-        'Un error ocurrió en la búsqueda del documento',
-      );
+    }
+  }
+
+  @Get('get-info-document/:id')
+  async (@Param('id', ParseIntPipe)id:number){
+    try {
+      return this.documentoService.getInfoDocumentId(id)
+    } catch (error) {
+      
     }
   }
   @Get('get-pending/:rut')
