@@ -15,7 +15,7 @@ Esta aplicación web facilita la gestión de firmas electrónicas avanzadas para
 - 📁 Sistema de carga y gestión de documentos
 - 🔐 Autenticación y autorización de usuarios
 - ✅ Verificación de firmas
-- 📊 Registro detallado de auditoría para documentos firmados
+
 
 ## 🛠️ Tecnologías Utilizadas
 
