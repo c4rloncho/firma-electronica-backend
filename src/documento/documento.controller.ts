@@ -2,12 +2,17 @@ import {
   BadRequestException,
   Body,
   Controller,
+  DefaultValuePipe,
   Get,
+  HttpException,
+  HttpStatus,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
   Param,
   ParseIntPipe,
   Post,
+  Query,
   Res,
   UploadedFile,
   UseInterceptors,
@@ -24,21 +29,14 @@ import { Response } from 'express';
 
 @Controller('document')
 export class DocumentoController {
+  private readonly logger = new Logger(DocumentoController.name);
   constructor(
     private readonly documentoService: DocumentoService,
     private configService:ConfigService,
   ) {}
 
   @Post('create')
-  @UseInterceptors(FileInterceptor('file', {
-    storage: diskStorage({
-      destination: './uploads',
-      filename: (req, file, cb) => {
-        const randomName = Array(32).fill(null).map(() => (Math.round(Math.random() * 16)).toString(16)).join('');
-        return cb(null, `${randomName}${extname(file.originalname)}`);
-      }
-    })
-  }))
+  @UseInterceptors(FileInterceptor('file', DocumentoService.getStorageOptions()))
   async createDocument(
     @Body() createDocumentDto: CreateDocumentDto,
     @UploadedFile() file: Express.Multer.File,
@@ -90,11 +88,52 @@ export class DocumentoController {
     }
   }
   @Get('get-pending/:rut')
-  async getFirmasPendientePorFuncionario(@Param('rut')rut:string){
+  async getFirmasPendientePorFuncionario(
+    @Param('rut') rut: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('name') name?: string
+  ) {
     try {
-      return this.documentoService.buscarFirmasPendientes(rut);
+      const result = await this.documentoService.getPendingSignatures(
+        rut, 
+        page, 
+        limit, 
+        startDate ? new Date(startDate) : undefined,
+        endDate ? new Date(endDate) : undefined,
+        name
+      );
+      return result;
     } catch (error) {
-      
+      this.logger.error(`Error al obtener firmas pendientes: ${error.message}`, error.stack);
+      throw new HttpException('Error al obtener firmas pendientes', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @Get('by-rut/:rut')
+  async getAllDocumentsByRut(
+    @Param('rut') rut: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('name') name?: string
+  ) {
+    try {
+      const result = await this.documentoService.getAllDocumentsByRut(
+        rut, 
+        page, 
+        limit, 
+        startDate ? new Date(startDate) : undefined,
+        endDate ? new Date(endDate) : undefined,
+        name
+      );
+      return result;
+    } catch (error) {
+      this.logger.error(`Error al obtener documentos por RUT: ${error.message}`, error.stack);
+      throw new HttpException('Error al obtener documentos', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 }

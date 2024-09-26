@@ -5,9 +5,10 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Document } from './entities/document.entity';
 import { DocumentSignature } from './entities/document-signature.entity';
 import { FirmaModule } from 'src/firma/firma.module';
+import { Attachment } from '../attachment/entities/attachment .entity';
 
 @Module({
-  imports:[TypeOrmModule.forFeature([Document,DocumentSignature]),FirmaModule],
+  imports:[TypeOrmModule.forFeature([Document,DocumentSignature,Attachment]),FirmaModule],
   controllers: [DocumentoController],
   providers: [DocumentoService],
   exports:[DocumentoService]

@@ -9,6 +9,7 @@ import { DocumentoModule } from './documento/documento.module';
 import config from './database/config';
 import { join } from 'path';
 import { ServeStaticModule } from '@nestjs/serve-static';
+import { AttachmentModule } from './attachment/attachment.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { ServeStaticModule } from '@nestjs/serve-static';
     FirmaModule,
     FuncionarioModule,
     DocumentoModule,
+    AttachmentModule,
   ],
   controllers: [AppController],
   providers: [AppService],
