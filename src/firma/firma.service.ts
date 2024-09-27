@@ -8,6 +8,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { SignResponse, SignedFile } from 'src/interfaces/firma.interfaces';
 import { SignDocumentDto } from 'src/documento/dto/sign-document.dto';
+import { DelegateSignDto } from './dto/delegate-sign.dto';
 
 @Injectable()
 export class FirmaService {
@@ -149,5 +150,10 @@ export class FirmaService {
       metadata: responseData.metadata,
       idSolicitud: responseData.idSolicitud,
     };
+  }
+
+
+  async delegateSign(input:DelegateSignDto){
+    
   }
 }

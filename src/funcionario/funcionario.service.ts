@@ -11,6 +11,7 @@ export class FuncionarioService {
     ){}
 
 
+
     async getByRut(rut: string): Promise<Funcionario> {
         if (!rut || rut.trim() === '') {
           throw new BadRequestException('El RUT no puede estar vacío');

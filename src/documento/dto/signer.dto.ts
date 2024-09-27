@@ -12,4 +12,6 @@ export class SignerDto {
     @IsEnum(SignerType)
     @IsNotEmpty()
     type: SignerType;
+
+    
   }

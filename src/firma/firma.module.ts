@@ -12,7 +12,7 @@ import { DocumentSignature } from 'src/documento/entities/document-signature.ent
 @Module({
   imports: [
     HttpModule,
-    TypeOrmModule.forFeature([Document,DocumentSignature]),
+    TypeOrmModule.forFeature([Document,DocumentSignature],'secondConnection'),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({

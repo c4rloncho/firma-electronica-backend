@@ -6,8 +6,9 @@ import { Attachment } from './entities/attachment .entity';
 import { Document } from 'src/documento/entities/document.entity';
 
 @Module({
-  imports:[TypeOrmModule.forFeature([Document,Attachment])],
+  imports:[TypeOrmModule.forFeature([Attachment,Document],'secondConnection')],
   controllers: [AttachmentController],
   providers: [AttachmentService],
+  exports:[AttachmentService],
 })
 export class AttachmentModule {}

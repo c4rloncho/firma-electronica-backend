@@ -18,13 +18,13 @@ import { FirmaService } from 'src/firma/firma.service';
 import * as fsp from 'fs/promises';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
-import path, { extname, join } from 'path';
-import { diskStorage } from 'multer';
+import { extname, join } from 'path';
+
 
 @Injectable()
 export class DocumentoService {
   constructor(
-    @InjectRepository(Document)
+    @InjectRepository(Document,'secondConnection')
     private readonly documentRepository: Repository<Document>,
     private firmaService: FirmaService,
     private entityManager: EntityManager,
@@ -37,7 +37,7 @@ export class DocumentoService {
     return this.documentRepository.manager.transaction(
       async (transactionalEntityManager) => {
         const { name, signers } = createDocumentDto;
-        // Verificar RUTs únicos
+        // Verificar ruts no se repitan
         const ruts = signers.map((signer) => signer.rut);
         const uniqueRuts = new Set(ruts);
         if (ruts.length !== uniqueRuts.size) {

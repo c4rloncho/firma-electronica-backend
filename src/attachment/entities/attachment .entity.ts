@@ -1,7 +1,7 @@
 import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import { Document } from '../../documento/entities/document.entity';
 
-@Entity()
+@Entity({ database: 'secondConnection' })
 export class Attachment {
   @PrimaryGeneratedColumn()
   id: number;

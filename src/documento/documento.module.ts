@@ -8,7 +8,7 @@ import { FirmaModule } from 'src/firma/firma.module';
 import { Attachment } from '../attachment/entities/attachment .entity';
 
 @Module({
-  imports:[TypeOrmModule.forFeature([Document,DocumentSignature,Attachment]),FirmaModule],
+  imports:[TypeOrmModule.forFeature([Document,DocumentSignature,Attachment],'secondConnection'),FirmaModule],
   controllers: [DocumentoController],
   providers: [DocumentoService],
   exports:[DocumentoService]

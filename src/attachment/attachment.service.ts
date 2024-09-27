@@ -11,9 +11,9 @@ import { Attachment } from './entities/attachment .entity';
 @Injectable()
 export class AttachmentService {
   constructor(
-    @InjectRepository(Attachment)
+    @InjectRepository(Attachment,'secondConnection')
     private attachmentRepository: Repository<Attachment>,
-    @InjectRepository(Document)
+    @InjectRepository(Document,'secondConnection')
     private documentRepository: Repository<Document>
   ) {}
 

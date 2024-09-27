@@ -1,12 +1,17 @@
-import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
+import { Column, Entity, Index, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import { Document } from './document.entity';
 
 export enum SignerType {
   VISADOR = "visador",
   FIRMADOR = "firmador"
 }
+export enum DelegationType{
+  DELEGADO = "delegado",
+  TITULAR = "titular"
+}
 
-@Entity()
+@Entity({ database: 'secondConnection' })
+@Index(["document", "signerOrder"], { unique: true })
 export class DocumentSignature {
   @PrimaryGeneratedColumn()
   id: number;
@@ -20,6 +25,16 @@ export class DocumentSignature {
   @Column()
   signerRut: string;
 
+  @Column({ nullable: true })
+  delegateRut: string;
+
+  @Column({
+    type: "enum",
+    enum: DelegationType,
+    default: DelegationType.TITULAR
+  })
+  delegationType: DelegationType;
+
   @Column({
     type: "enum",
     enum: SignerType,
@@ -27,7 +42,7 @@ export class DocumentSignature {
   })
   signerType: SignerType;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, type: 'timestamp' })
   signedAt: Date;
 
   @Column({ default: false })

@@ -13,7 +13,8 @@ import { AttachmentModule } from './attachment/attachment.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forRoot(config),
+    TypeOrmModule.forRoot(config[0]),
+    TypeOrmModule.forRoot(config[1]),
     ConfigModule.forRoot({
       isGlobal: true,
     }),

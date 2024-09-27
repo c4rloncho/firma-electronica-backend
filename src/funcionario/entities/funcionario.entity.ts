@@ -1,6 +1,6 @@
 import { Entity, Column, PrimaryColumn } from 'typeorm';
 
-@Entity('funcionarios')
+@Entity('funcionarios', { database: 'default' })
 export class Funcionario {
   @PrimaryColumn({ type: 'varchar', length: 10 })
   rut: string;
