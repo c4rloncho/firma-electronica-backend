@@ -1,12 +1,12 @@
 import { Entity, Column, PrimaryColumn } from "typeorm";
 
-@Entity({database:'secondConnection'})
+@Entity({ database: 'secondConnection' })
 export class Delegate {
     @PrimaryColumn()
     delegateRut: string;
 
     @PrimaryColumn()
-    titular: string;
+    ownerRut: string;
 
     @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
     createdAt: Date;

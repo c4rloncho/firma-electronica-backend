@@ -1,7 +1,7 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { BadRequestException, HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as crypto from 'crypto';
-import { lastValueFrom } from 'rxjs';
+import { lastValueFrom, NotFoundError } from 'rxjs';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs/promises';
@@ -9,6 +9,10 @@ import * as path from 'path';
 import { SignResponse, SignedFile } from 'src/interfaces/firma.interfaces';
 import { SignDocumentDto } from 'src/documento/dto/sign-document.dto';
 import { DelegateSignDto } from './dto/delegate-sign.dto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Delegate } from 'src/funcionario/entities/delegado.entity';
+import { Repository } from 'typeorm';
+import { Funcionario } from 'src/funcionario/entities/funcionario.entity';
 
 @Injectable()
 export class FirmaService {
@@ -16,6 +20,11 @@ export class FirmaService {
     private readonly jwtService: JwtService,
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
+    @InjectRepository(Delegate, 'secondConnection')
+    private readonly delegateRepository:Repository<Delegate>,
+    @InjectRepository(Funcionario,'default')
+    private readonly funcionarioRepository:Repository<Funcionario>
+
   ) {}
 
   private async createAgileSignerConfig(
@@ -76,7 +85,6 @@ export class FirmaService {
     imageBuffer: Express.Multer.File,
   ) {
     const token = this.generateToken(input);
-
     const altura = input.heightImage ? parseInt(input.heightImage.toString(), 10) : 0;
     const layout = await this.createAgileSignerConfig(imageBuffer, altura);
     const payload = {
@@ -153,7 +161,30 @@ export class FirmaService {
   }
 
 
-  async delegateSign(input:DelegateSignDto){
-    
+  async delegateSign(input: DelegateSignDto): Promise<Delegate> {
+    const { ownerRut, delegateRut } = input;
+
+    const [owner, delegate] = await Promise.all([
+      this.funcionarioRepository.findOne({ where: { rut: ownerRut } }),
+      this.funcionarioRepository.findOne({ where: { rut: delegateRut } }),
+    ]);
+
+    if (!owner || !delegate) {
+      throw new NotFoundException('Uno o ambos RUTs ingresados son incorrectos');
+    }
+
+    const existingDelegate = await this.delegateRepository.findOne({ where: { ownerRut: ownerRut } });
+    if (existingDelegate) {
+      throw new BadRequestException('Solo puedes delegar a una persona. Elimina la anterior para agregar una nueva.');
+    }
+
+    const newDelegate = this.delegateRepository.create({
+      createdAt: new Date(),
+      delegateRut: delegateRut,
+      ownerRut: ownerRut,
+    });
+
+    return this.delegateRepository.save(newDelegate);
   }
+ 
 }

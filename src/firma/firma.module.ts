@@ -8,11 +8,14 @@ import { DocumentoModule } from 'src/documento/documento.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Document } from 'src/documento/entities/document.entity';
 import { DocumentSignature } from 'src/documento/entities/document-signature.entity';
+import { Delegate } from 'src/funcionario/entities/delegado.entity';
+import { Funcionario } from 'src/funcionario/entities/funcionario.entity';
 
 @Module({
   imports: [
     HttpModule,
-    TypeOrmModule.forFeature([Document,DocumentSignature],'secondConnection'),
+    TypeOrmModule.forFeature([Document,DocumentSignature,Delegate],'secondConnection'),
+    TypeOrmModule.forFeature([Funcionario]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({

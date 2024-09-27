@@ -1,4 +1,11 @@
-export class DelegateSignDto{
-    rut:string
-    rutDelegado:string
+import { IsString, IsNotEmpty, Matches } from 'class-validator';
+
+export class DelegateSignDto {
+  @IsString()
+  @IsNotEmpty()
+  ownerRut: string;
+
+  @IsString()
+  @IsNotEmpty()
+  delegateRut: string;
 }
