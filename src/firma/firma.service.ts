@@ -8,7 +8,6 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { SignResponse, SignedFile } from 'src/interfaces/firma.interfaces';
 import { SignDocumentDto } from 'src/documento/dto/sign-document.dto';
-import { DelegateSignDto } from './dto/delegate-sign.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Delegate } from 'src/funcionario/entities/delegado.entity';
 import { Repository } from 'typeorm';
@@ -20,10 +19,7 @@ export class FirmaService {
     private readonly jwtService: JwtService,
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
-    @InjectRepository(Delegate, 'secondConnection')
-    private readonly delegateRepository:Repository<Delegate>,
-    @InjectRepository(Funcionario,'default')
-    private readonly funcionarioRepository:Repository<Funcionario>
+
 
   ) {}
 
@@ -161,30 +157,5 @@ export class FirmaService {
   }
 
 
-  async delegateSign(input: DelegateSignDto): Promise<Delegate> {
-    const { ownerRut, delegateRut } = input;
 
-    const [owner, delegate] = await Promise.all([
-      this.funcionarioRepository.findOne({ where: { rut: ownerRut } }),
-      this.funcionarioRepository.findOne({ where: { rut: delegateRut } }),
-    ]);
-
-    if (!owner || !delegate) {
-      throw new NotFoundException('Uno o ambos RUTs ingresados son incorrectos');
-    }
-
-    const existingDelegate = await this.delegateRepository.findOne({ where: { ownerRut: ownerRut } });
-    if (existingDelegate) {
-      throw new BadRequestException('Solo puedes delegar a una persona. Elimina la anterior para agregar una nueva.');
-    }
-
-    const newDelegate = this.delegateRepository.create({
-      createdAt: new Date(),
-      delegateRut: delegateRut,
-      ownerRut: ownerRut,
-    });
-
-    return this.delegateRepository.save(newDelegate);
-  }
- 
 }

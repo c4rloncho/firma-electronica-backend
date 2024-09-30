@@ -13,5 +13,4 @@ export class SignerDto {
     @IsNotEmpty()
     type: SignerType;
 
-    
   }

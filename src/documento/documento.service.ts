@@ -5,10 +5,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { CreateDocumentDto } from './dto/create-document.dto';
-import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { Document } from './entities/document.entity';
 import {
+  DelegationType,
   DocumentSignature,
   SignerType,
 } from './entities/document-signature.entity';
@@ -19,13 +20,20 @@ import * as fsp from 'fs/promises';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
 import { extname, join } from 'path';
-
+import { Funcionario } from 'src/funcionario/entities/funcionario.entity';
+import { Delegate } from 'src/funcionario/entities/delegado.entity';
 
 @Injectable()
 export class DocumentoService {
   constructor(
-    @InjectRepository(Document,'secondConnection')
+    @InjectRepository(Document, 'secondConnection')
     private readonly documentRepository: Repository<Document>,
+    @InjectRepository(Delegate, 'secondConnection')
+    private readonly delegateRepository: Repository<Delegate>,
+    @InjectRepository(DocumentSignature, 'secondConnection')
+    private documentSignatureRepository: Repository<DocumentSignature>,
+    @InjectDataSource('secondConnection')
+    private dataSource: DataSource,
     private firmaService: FirmaService,
     private entityManager: EntityManager,
   ) {}
@@ -37,58 +45,106 @@ export class DocumentoService {
     return this.documentRepository.manager.transaction(
       async (transactionalEntityManager) => {
         const { name, signers } = createDocumentDto;
-        // Verificar ruts no se repitan
-        const ruts = signers.map((signer) => signer.rut);
-        const uniqueRuts = new Set(ruts);
-        if (ruts.length !== uniqueRuts.size) {
-          throw new BadRequestException(
-            'Cada RUT debe ser único en la lista de firmantes',
-          );
-        }
 
-        //verificar que se sigue el orden correcto
-        const firmantes = signers.filter(signer => signer.type === SignerType.FIRMADOR)
-        const visadores = signers.filter(signer => signer.type === SignerType.VISADOR)
-        for (const firmante of firmantes) {
-          const visadoresAnteriores = visadores.filter(v => v.order < firmante.order);
-          if (visadoresAnteriores.length === 0) {
-            throw new BadRequestException('Los visadores siempre deben firmar primero');
-          }
-        }
-        
+        // Verificar RUTs únicos
+        this.verifyUniqueRuts(signers);
 
-        // Generar el nombre aleatorio del archivo
+        // Verificar orden correcto de firmantes y visadores
+        this.verifySignerOrder(signers);
+
+        // Generar nombre aleatorio del archivo
         const randomName = this.generateRandomFileName(file.originalname);
 
-        // Crear el documento con el nombre del archivo generado
-        const document = transactionalEntityManager.create(Document, {
+        // Crear y guardar el documento
+        const document = await this.createAndSaveDocument(
+          transactionalEntityManager,
           name,
-          fileName: randomName,
-          date: new Date(),
-        });
-        await transactionalEntityManager.save(document);
-
-        const signatures = signers.map((signer: SignerDto) =>
-          transactionalEntityManager.create(DocumentSignature, {
-            document,
-            signerRut: signer.rut,
-            signerOrder: signer.order,
-            signerType: signer.type,
-          }),
+          randomName,
         );
-        await transactionalEntityManager.save(signatures);
 
-        // Intentar guardar el archivo
-        try {
-          await this.saveFile(file, randomName);
-        } catch (error) {
-          // Si falla el guardado del archivo, lanzamos un error para que la transacción haga rollback
-          throw new Error(`Failed to save file: ${error.message}`);
-        }
+        // Crear y guardar las firmas
+        await this.createAndSaveSignatures(
+          transactionalEntityManager,
+          document,
+          signers,
+        );
+
+        // Guardar el archivo
+        await this.saveFile(file, randomName);
 
         return document;
       },
     );
+  }
+
+  private verifyUniqueRuts(signers: SignerDto[]): void {
+    const ruts = signers.map((signer) => signer.rut);
+    const uniqueRuts = new Set(ruts);
+    if (ruts.length !== uniqueRuts.size) {
+      throw new BadRequestException(
+        'Cada RUT debe ser único en la lista de firmantes',
+      );
+    }
+  }
+
+  private verifySignerOrder(signers: SignerDto[]): void {
+    const firmantes = signers.filter(
+      (signer) => signer.type === SignerType.FIRMADOR,
+    );
+    const visadores = signers.filter(
+      (signer) => signer.type === SignerType.VISADOR,
+    );
+
+    if (firmantes.length === 0 || visadores.length === 0) {
+      return; // No hay necesidad de verificar si no hay firmantes o visadores
+    }
+    //si existe un firmador con order minimo a los visadores lanza error (todos los visadores visan primero)
+    const maxVisadorOrder = Math.max(...visadores.map((v) => v.order));
+    const minFirmanteOrder = Math.min(...firmantes.map((f) => f.order));
+
+    if (minFirmanteOrder <= maxVisadorOrder) {
+      throw new BadRequestException(
+        'Todos los visadores deben firmar antes que cualquier firmante',
+      );
+    }
+  }
+
+  private async createAndSaveDocument(
+    transactionalEntityManager: EntityManager,
+    name: string,
+    fileName: string,
+  ): Promise<Document> {
+    const document = transactionalEntityManager.create(Document, {
+      name,
+      fileName,
+      date: new Date(),
+    });
+    return transactionalEntityManager.save(document);
+  }
+
+  private async createAndSaveSignatures(
+    transactionalEntityManager: EntityManager,
+    document: Document,
+    signers: SignerDto[],
+  ): Promise<void> {
+    const signatures = await Promise.all(
+      signers.map(async (signer: SignerDto) => {
+        const delegate = await this.delegateRepository.findOne({
+          where: { ownerRut: signer.rut },
+        });
+        const delegateRut = delegate ? delegate.delegateRut : null;
+
+        return transactionalEntityManager.create(DocumentSignature, {
+          document,
+          signerRut: signer.rut,
+          signerOrder: signer.order,
+          signerType: signer.type,
+          delegateRut: delegateRut,
+        });
+      }),
+    );
+
+    await transactionalEntityManager.save(signatures);
   }
 
   private generateRandomFileName(originalName: string): string {
@@ -115,88 +171,85 @@ export class DocumentoService {
   }
 
   async signDocument(input: SignDocumentDto, imageBuffer: Express.Multer.File) {
-    return this.entityManager.transaction(
-      async (transactionalEntityManager) => {
-        const { documentId, run } = input;
-        const document = await this.documentRepository.findOne({
-          where: { id: parseInt(documentId) },
-          relations: ['signatures'],
-        });
+    return this.dataSource.transaction(async (transactionalEntityManager) => {
+      const { documentId, run } = input;
+      const document = await transactionalEntityManager.findOne(Document, {
+        where: { id: parseInt(documentId) },
+        relations: ['signatures'],
+      });
 
-        if (!document) {
-          throw new NotFoundException(
-            `Documento con el id ${documentId} no encontrado`,
+      if (!document) {
+        throw new NotFoundException(
+          `Documento con el id ${documentId} no encontrado`,
+        );
+      }
+
+      //verifica que sea el rut original o del delegado
+      const pendingSignature = document.signatures.find(
+        (s) =>
+          (!s.isSigned && s.signerRut === run) ||
+          (!s.isSigned && s.delegateRut === run),
+      );
+
+      if (!pendingSignature) {
+        throw new BadRequestException('No corresponde firmar o ya firmó');
+      }
+      //si es del delegado modificamos el objeto de la firma
+      if (pendingSignature.delegateRut === run) {
+        pendingSignature.delegationType = DelegationType.DELEGADO;
+      }
+
+      this.validateSignatureOrder(document.signatures, pendingSignature);
+
+      try {
+        const dateObject = new Date(document.date);
+        const documentYear = dateObject.getFullYear().toString();
+
+        const { content, checksum } = await this.prepareFile(
+          document.fileName,
+          documentYear,
+        );
+
+        const firmaResult = await this.firmaService.signdocument(
+          {
+            ...input,
+            documentContent: content,
+            documentChecksum: checksum,
+          },
+          imageBuffer,
+        );
+
+        if (firmaResult.success) {
+          await this.saveSignedFile(
+            firmaResult.signatureInfo.signedFiles[0],
+            document,
+          );
+          pendingSignature.isSigned = true;
+          pendingSignature.signedAt = new Date();
+          await transactionalEntityManager.save(pendingSignature);
+
+          const allSigned = document.signatures.every((s) => s.isSigned);
+          if (allSigned) {
+            document.isFullySigned = true;
+            await transactionalEntityManager.save(document);
+          }
+
+          return {
+            message: 'Documento firmado exitosamente',
+            signature: pendingSignature,
+            firmaInfo: firmaResult.signatureInfo,
+          };
+        } else {
+          throw new BadRequestException(
+            'La firma digital no se pudo completar',
           );
         }
-
-        const pendingSignature = document.signatures.find(
-          (s) => !s.isSigned && s.signerRut === run,
+      } catch (error) {
+        throw new BadRequestException(
+          `Error al firmar el documento: ${error.message}`,
         );
-
-        if (!pendingSignature) {
-          throw new BadRequestException('No corresponde firmar o ya firmó');
-        }
-
-        this.validateSignatureOrder(document.signatures, pendingSignature);
-
-        return await this.entityManager.transaction(
-          async (transactionalEntityManager) => {
-            try {
-              const dateObject = new Date(document.date);
-              console.log(typeof dateObject);
-              const documentYear = dateObject.getFullYear().toString();
-              console.log(typeof documentYear);
-
-              const { content, checksum } = await this.prepareFile(
-                document.fileName,
-                documentYear,
-              );
-
-              // Llamada al servicio de firma
-              const firmaResult = await this.firmaService.signdocument(
-                {
-                  ...input,
-                  documentContent: content,
-                  documentChecksum: checksum,
-                },
-                imageBuffer,
-              );
-
-              if (firmaResult.success) {
-                await this.saveSignedFile(
-                  firmaResult.signatureInfo.signedFiles[0],
-                  document,
-                );
-                pendingSignature.isSigned = true;
-                pendingSignature.signedAt = new Date();
-                await transactionalEntityManager.save(pendingSignature);
-
-                // Verificar si el documento está completamente firmado
-                const allSigned = document.signatures.every((s) => s.isSigned);
-                if (allSigned) {
-                  document.isFullySigned = true;
-                  await transactionalEntityManager.save(document);
-                }
-
-                return {
-                  message: 'Documento firmado exitosamente',
-                  signature: pendingSignature,
-                  firmaInfo: firmaResult.signatureInfo,
-                };
-              } else {
-                throw new BadRequestException(
-                  'La firma digital no se pudo completar',
-                );
-              }
-            } catch (error) {
-              throw new BadRequestException(
-                `Error al firmar el documento: ${error.message}`,
-              );
-            }
-          },
-        );
-      },
-    );
+      }
+    });
   }
   private async saveSignedFile(
     signedFile: { content: Buffer; checksum: string },
@@ -230,7 +283,6 @@ export class DocumentoService {
       const allVisadores = signatures.filter(
         (s) => s.signerType === SignerType.VISADOR,
       );
-      console.log(allVisadores.length);
       if (allVisadores.some((s) => !s.isSigned)) {
         throw new BadRequestException(
           'Todos los visadores deben firmar antes que los firmadores',
@@ -361,6 +413,8 @@ export class DocumentoService {
       typeSign: string;
       isSigned: boolean;
       isFullySigned: boolean;
+      delegationType: string;
+      delegateRut: string;
     }[];
     total: number;
     page: number;
@@ -382,6 +436,8 @@ export class DocumentoService {
         'document.isFullySigned',
         'signature.signerType',
         'signature.isSigned',
+        'signature.delegationType',
+        'signature.delegateRut',
       ]);
 
     if (startDate && endDate) {
@@ -409,6 +465,8 @@ export class DocumentoService {
       typeSign: doc.signatures[0]?.signerType || 'desconocido',
       isSigned: doc.signatures[0]?.isSigned,
       isFullySigned: doc.isFullySigned,
+      delegationType: doc.signatures[0]?.delegationType,
+      delegateRut: doc.signatures[0]?.delegateRut,
     }));
 
     return {
