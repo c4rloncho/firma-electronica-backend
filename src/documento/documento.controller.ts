@@ -30,11 +30,10 @@ import { Response } from 'express';
 
 @Controller('document')
 export class DocumentoController {
-  
   private readonly logger = new Logger(DocumentoController.name);
   constructor(
     private readonly documentoService: DocumentoService,
-    private configService:ConfigService,
+    private configService: ConfigService,
   ) {}
 
   @Post('create')
@@ -44,64 +43,86 @@ export class DocumentoController {
     @UploadedFile() file: Express.Multer.File,
   ) {
     if (!file) {
-      throw new HttpException('No se ha proporcionado ningún archivo', HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        'No se ha proporcionado ningún archivo',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     try {
-      const document = await this.documentoService.createDocument(createDocumentDto, file);
+      const document = await this.documentoService.createDocument(
+        createDocumentDto,
+        file,
+      );
       return {
         message: 'Documento creado exitosamente',
-        document
+        document,
       };
     } catch (error) {
       console.error('Error al crear el documento:', error);
 
       if (error.message.includes('Failed to save file')) {
-        throw new HttpException('Error al guardar el archivo', HttpStatus.INTERNAL_SERVER_ERROR);
+        throw new HttpException(
+          'Error al guardar el archivo',
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
       } else {
-        throw new HttpException('Error al crear el documento', HttpStatus.INTERNAL_SERVER_ERROR);
+        throw new HttpException(
+          'Error al crear el documento',
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
       }
     }
   }
-  
+
   @Post('sign')
   @UseInterceptors(FileInterceptor('image'))
   async signDocument(
     @Body() signDocumentDto: SignDocumentDto,
-    @UploadedFile() imageFile: Express.Multer.File
+    @UploadedFile() imageFile: Express.Multer.File,
   ) {
     if (!imageFile) {
       throw new BadRequestException('La imagen de firma es requerida');
     }
 
     try {
-      const result = await this.documentoService.signDocument(signDocumentDto, imageFile);
+      const result = await this.documentoService.signDocument(
+        signDocumentDto,
+        imageFile,
+      );
       return {
         message: 'Documento firmado exitosamente',
-        data: result
+        data: result,
       };
     } catch (error) {
-      throw new BadRequestException(`Error al firmar el documento: ${error.message}`);
+      throw new BadRequestException(
+        `Error al firmar el documento: ${error.message}`,
+      );
     }
   }
 
   @Get('get-by-id/:id')
   async getDocumentById(
     @Param('id', ParseIntPipe) id: number,
-    @Res() res: Response
+    @Res() res: Response,
   ) {
     try {
       const document = await this.documentoService.getById(id);
       const filePath = join(process.cwd(), document.filePath);
-  
+
       // Verificar si el archivo existe
       if (!existsSync(filePath)) {
-        throw new NotFoundException(`El archivo ${document.fileName} no se encuentra en el servidor.`);
+        throw new NotFoundException(
+          `El archivo ${document.fileName} no se encuentra en el servidor.`,
+        );
       }
 
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `inline; filename="${document.fileName}"`);
-  
+      res.setHeader(
+        'Content-Disposition',
+        `inline; filename="${document.fileName}"`,
+      );
+
       createReadStream(filePath).pipe(res);
     } catch (error) {
       if (error instanceof BadRequestException) {
@@ -112,19 +133,17 @@ export class DocumentoController {
         throw error;
       } else {
         throw new InternalServerErrorException(
-          `Un error inesperado ocurrió al procesar la solicitud: ${error.message}`
+          `Un error inesperado ocurrió al procesar la solicitud: ${error.message}`,
         );
       }
     }
   }
 
   @Get('get-info-document/:id')
-  async (@Param('id', ParseIntPipe)id:number){
+  async(@Param('id', ParseIntPipe) id: number) {
     try {
-      return this.documentoService.getInfoDocumentId(id)
-    } catch (error) {
-      
-    }
+      return this.documentoService.getInfoDocumentId(id);
+    } catch (error) {}
   }
   @Get('get-pending/:rut')
   async getFirmasPendientePorFuncionario(
@@ -133,21 +152,27 @@ export class DocumentoController {
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('name') name?: string
+    @Query('name') name?: string,
   ) {
     try {
       const result = await this.documentoService.getPendingSignatures(
-        rut, 
-        page, 
-        limit, 
+        rut,
+        page,
+        limit,
         startDate ? new Date(startDate) : undefined,
         endDate ? new Date(endDate) : undefined,
-        name
+        name,
       );
       return result;
     } catch (error) {
-      this.logger.error(`Error al obtener firmas pendientes: ${error.message}`, error.stack);
-      throw new HttpException('Error al obtener firmas pendientes', HttpStatus.INTERNAL_SERVER_ERROR);
+      this.logger.error(
+        `Error al obtener firmas pendientes: ${error.message}`,
+        error.stack,
+      );
+      throw new HttpException(
+        'Error al obtener firmas pendientes',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -158,26 +183,46 @@ export class DocumentoController {
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('name') name?: string
+    @Query('name') name?: string,
   ) {
     try {
       const result = await this.documentoService.getAllDocumentsByRut(
-        rut, 
-        page, 
-        limit, 
+        rut,
+        page,
+        limit,
         startDate ? new Date(startDate) : undefined,
         endDate ? new Date(endDate) : undefined,
-        name
+        name,
       );
       return result;
     } catch (error) {
-      this.logger.error(`Error al obtener documentos por RUT: ${error.message}`, error.stack);
-      throw new HttpException('Error al obtener documentos', HttpStatus.INTERNAL_SERVER_ERROR);
+      this.logger.error(
+        `Error al obtener documentos por RUT: ${error.message}`,
+        error.stack,
+      );
+      throw new HttpException(
+        'Error al obtener documentos',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
   @Get(':delegateRut/firmas')
   @HttpCode(HttpStatus.OK)
-  async findDelegateSignatures(@Param('delegateRut') delegateRut: string,){
-    return this.documentoService.findDelegateSignatures(delegateRut);
+  async findDelegateSignatures(
+    @Param('delegateRut') delegateRut: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('name') name?: string,
+  ) {
+    return this.documentoService.findDelegateSignatures(
+      delegateRut,
+      page,
+      limit,
+      startDate,
+      endDate,
+      name
+    );
   }
 }

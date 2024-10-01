@@ -491,30 +491,60 @@ export class DocumentoService {
 
   async findDelegateSignatures(
     delegateRut: string,
-  ): Promise<DocumentSignature[]> {
+    page: number = 1,
+    limit: number = 10,
+    startDate?: string,
+    endDate?: string,
+    documentName?: string
+  ): Promise<{ signatures: DocumentSignature[], total: number, page: number, totalPages: number }> {
     try {
-      // Primero, verificamos si el delegado existe y está activo
+      // Verificamos si el delegado existe y está activo
       const delegate = await this.delegateRepository.findOne({
-        where: { delegateRut:delegateRut, isActive: true, isDeleted: false },
+        where: { delegateRut: delegateRut, isActive: true, isDeleted: false },
       });
       if (!delegate) {
         throw new NotFoundException(
           `No se encontró un delegado activo con RUT ${delegateRut}`,
         );
       }
-
-      // Busacamos las firmas donde pendientes del owner , las cuales el delegado puede firmar
-      const signatures = await this.documentSignatureRepository.find({
-        where: {
-          ownerRut: delegate.ownerRut,isSigned: false
-        },
-        relations: ['document'],
-      });
-      if (signatures.length === 0) {
-        return []; // Retornamos un array vacío si no hay firmas pendientes
+  
+      // Calculamos el offset para la paginación
+      const skip = (page - 1) * limit;
+  
+      // Creamos el queryBuilder para construir la consulta
+      const queryBuilder = this.documentSignatureRepository.createQueryBuilder('signature')
+        .leftJoinAndSelect('signature.document', 'document')
+        .where('signature.ownerRut = :ownerRut', { ownerRut: delegate.ownerRut })
+        .andWhere('signature.isSigned = :isSigned', { isSigned: false });
+  
+      // Agregamos el filtro por nombre de documento si se proporciona
+      if (documentName) {
+        queryBuilder.andWhere('LOWER(document.name) LIKE LOWER(:name)', { name: `%${documentName}%` });
       }
-
-      return signatures;
+  
+      // Agregamos los filtros de fecha si se proporcionan
+      if (startDate) {
+        queryBuilder.andWhere('document.createdAt >= :startDate', { startDate: new Date(startDate) });
+      }
+      if (endDate) {
+        queryBuilder.andWhere('document.createdAt <= :endDate', { endDate: new Date(endDate) });
+      }
+  
+      // Ejecutamos la consulta con paginación
+      const [signatures, total] = await queryBuilder
+        .skip(skip)
+        .take(limit)
+        .getManyAndCount();
+  
+      // Calculamos el número total de páginas
+      const totalPages = Math.ceil(total / limit);
+  
+      return {
+        signatures,
+        total,
+        page,
+        totalPages
+      };
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
