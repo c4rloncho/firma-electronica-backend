@@ -11,6 +11,7 @@ import {
   Logger,
   NotFoundException,
   Param,
+  ParseBoolPipe,
   ParseIntPipe,
   Post,
   Query,
@@ -206,23 +207,5 @@ export class DocumentoController {
       );
     }
   }
-  @Get(':delegateRut/firmas')
-  @HttpCode(HttpStatus.OK)
-  async findDelegateSignatures(
-    @Param('delegateRut') delegateRut: string,
-    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-    @Query('name') name?: string,
-  ) {
-    return this.documentoService.findDelegateSignatures(
-      delegateRut,
-      page,
-      limit,
-      startDate,
-      endDate,
-      name
-    );
-  }
+
 }

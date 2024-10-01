@@ -15,6 +15,7 @@ import { Delegate } from 'src/delegate/entities/delegado.entity';
       [Document, DocumentSignature, Attachment,Delegate],
       'secondConnection',
     ),
+    TypeOrmModule.forFeature([Funcionario],'default'),
     
     FirmaModule,
   ],
