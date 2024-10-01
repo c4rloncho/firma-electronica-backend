@@ -9,7 +9,6 @@ import * as path from 'path';
 import { SignResponse, SignedFile } from 'src/interfaces/firma.interfaces';
 import { SignDocumentDto } from 'src/documento/dto/sign-document.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Delegate } from 'src/funcionario/entities/delegado.entity';
 import { Repository } from 'typeorm';
 import { Funcionario } from 'src/funcionario/entities/funcionario.entity';
 

@@ -4,6 +4,7 @@ import {
   Controller,
   DefaultValuePipe,
   Get,
+  HttpCode,
   HttpException,
   HttpStatus,
   InternalServerErrorException,
@@ -173,5 +174,10 @@ export class DocumentoController {
       this.logger.error(`Error al obtener documentos por RUT: ${error.message}`, error.stack);
       throw new HttpException('Error al obtener documentos', HttpStatus.INTERNAL_SERVER_ERROR);
     }
+  }
+  @Get(':delegateRut/firmas')
+  @HttpCode(HttpStatus.OK)
+  async findDelegateSignatures(@Param('delegateRut') delegateRut: string,){
+    return this.documentoService.findDelegateSignatures(delegateRut);
   }
 }

@@ -4,12 +4,12 @@ import { FuncionarioController } from './funcionario.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Funcionario } from './entities/funcionario.entity';
 import { Document } from 'src/documento/entities/document.entity';
-import { Delegate } from './entities/delegado.entity';
+import { Delegate } from '../delegate/entities/delegado.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Funcionario]),
-    TypeOrmModule.forFeature([Document, Delegate], 'secondConnection'),
+    TypeOrmModule.forFeature([Funcionario],'default'),
+    TypeOrmModule.forFeature([Document], 'secondConnection'),
   ],
   controllers: [FuncionarioController],
   providers: [FuncionarioService],

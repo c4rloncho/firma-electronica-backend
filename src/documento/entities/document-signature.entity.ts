@@ -5,13 +5,8 @@ export enum SignerType {
   VISADOR = "visador",
   FIRMADOR = "firmador"
 }
-export enum DelegationType{
-  DELEGADO = "delegado",
-  TITULAR = "titular"
-}
 
 @Entity({ database: 'secondConnection' })
-@Index(["document", "signerOrder"], { unique: true })
 export class DocumentSignature {
   @PrimaryGeneratedColumn()
   id: number;
@@ -23,17 +18,13 @@ export class DocumentSignature {
   signerOrder: number;
 
   @Column()
-  signerRut: string;
+  ownerRut: string;
 
   @Column({ nullable: true })
-  delegateRut: string;
+  signerRut: string;
 
-  @Column({
-    type: "enum",
-    enum: DelegationType,
-    default: DelegationType.TITULAR
-  })
-  delegationType: DelegationType;
+  // @ManyToOne(() => Delegate, { nullable: true })
+  // delegate: Delegate;
 
   @Column({
     type: "enum",

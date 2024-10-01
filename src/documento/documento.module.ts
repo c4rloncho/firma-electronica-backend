@@ -7,7 +7,7 @@ import { DocumentSignature } from './entities/document-signature.entity';
 import { FirmaModule } from 'src/firma/firma.module';
 import { Attachment } from '../attachment/entities/attachment .entity';
 import { Funcionario } from 'src/funcionario/entities/funcionario.entity';
-import { Delegate } from 'src/funcionario/entities/delegado.entity';
+import { Delegate } from 'src/delegate/entities/delegado.entity';
 
 @Module({
   imports: [

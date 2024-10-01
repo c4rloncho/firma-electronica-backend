@@ -6,10 +6,9 @@ import {
 } from '@nestjs/common';
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import { Between, createQueryBuilder, DataSource, EntityManager, Like, Repository } from 'typeorm';
 import { Document } from './entities/document.entity';
 import {
-  DelegationType,
   DocumentSignature,
   SignerType,
 } from './entities/document-signature.entity';
@@ -21,7 +20,7 @@ import * as fs from 'fs';
 import * as crypto from 'crypto';
 import { extname, join } from 'path';
 import { Funcionario } from 'src/funcionario/entities/funcionario.entity';
-import { Delegate } from 'src/funcionario/entities/delegado.entity';
+import { Delegate } from 'src/delegate/entities/delegado.entity';
 
 @Injectable()
 export class DocumentoService {
@@ -31,11 +30,10 @@ export class DocumentoService {
     @InjectRepository(Delegate, 'secondConnection')
     private readonly delegateRepository: Repository<Delegate>,
     @InjectRepository(DocumentSignature, 'secondConnection')
-    private documentSignatureRepository: Repository<DocumentSignature>,
+    private readonly documentSignatureRepository: Repository<DocumentSignature>,
     @InjectDataSource('secondConnection')
     private dataSource: DataSource,
     private firmaService: FirmaService,
-    private entityManager: EntityManager,
   ) {}
 
   async createDocument(
@@ -129,17 +127,16 @@ export class DocumentoService {
   ): Promise<void> {
     const signatures = await Promise.all(
       signers.map(async (signer: SignerDto) => {
+        //cada persona solo puede tener un solo delegado(ownerRut no se puede repetir) 
         const delegate = await this.delegateRepository.findOne({
           where: { ownerRut: signer.rut },
         });
-        const delegateRut = delegate ? delegate.delegateRut : null;
-
         return transactionalEntityManager.create(DocumentSignature, {
           document,
-          signerRut: signer.rut,
+          signerRut: null, //se pondra el rut de la persona que firme el documento
           signerOrder: signer.order,
           signerType: signer.type,
-          delegateRut: delegateRut,
+          ownerRut: signer.rut,
         });
       }),
     );
@@ -177,39 +174,49 @@ export class DocumentoService {
         where: { id: parseInt(documentId) },
         relations: ['signatures'],
       });
-
+  
       if (!document) {
-        throw new NotFoundException(
-          `Documento con el id ${documentId} no encontrado`,
-        );
+        throw new NotFoundException(`Documento con el id ${documentId} no encontrado`);
       }
-
-      //verifica que sea el rut original o del delegado
-      const pendingSignature = document.signatures.find(
-        (s) =>
-          (!s.isSigned && s.signerRut === run) ||
-          (!s.isSigned && s.delegateRut === run),
-      );
-
+  
+      // Verificar si la persona ya ha firmado el documento
+      const alreadySigned = document.signatures.some(s => s.signerRut === run && s.isSigned);
+      if (alreadySigned) {
+        throw new BadRequestException('Ya ha firmado este documento');
+      }
+  
+      // Buscar la firma pendiente
+      let pendingSignature = document.signatures.find(s => !s.isSigned && s.ownerRut === run);
+      
       if (!pendingSignature) {
-        throw new BadRequestException('No corresponde firmar o ya firmó');
+        // Verificar si es un delegado activo
+        const activeDelegate = await transactionalEntityManager.findOne(Delegate, {
+          where: { delegateRut: run, isActive: true }
+        });
+  
+        if (activeDelegate) {
+          pendingSignature = document.signatures.find(s => !s.isSigned && s.ownerRut === activeDelegate.ownerRut);
+        }
+  
+        if (!pendingSignature) {
+          throw new BadRequestException('No corresponde firmar o el delegado no está activo');
+        }
       }
-      //si es del delegado modificamos el objeto de la firma
-      if (pendingSignature.delegateRut === run) {
-        pendingSignature.delegationType = DelegationType.DELEGADO;
-      }
-
+  
+      // Actualizar el signerRut con quien realmente está firmando
+      pendingSignature.signerRut = run;
+  
       this.validateSignatureOrder(document.signatures, pendingSignature);
-
+  
       try {
         const dateObject = new Date(document.date);
         const documentYear = dateObject.getFullYear().toString();
-
+  
         const { content, checksum } = await this.prepareFile(
           document.fileName,
           documentYear,
         );
-
+  
         const firmaResult = await this.firmaService.signdocument(
           {
             ...input,
@@ -218,7 +225,7 @@ export class DocumentoService {
           },
           imageBuffer,
         );
-
+  
         if (firmaResult.success) {
           await this.saveSignedFile(
             firmaResult.signatureInfo.signedFiles[0],
@@ -227,27 +234,23 @@ export class DocumentoService {
           pendingSignature.isSigned = true;
           pendingSignature.signedAt = new Date();
           await transactionalEntityManager.save(pendingSignature);
-
+  
           const allSigned = document.signatures.every((s) => s.isSigned);
           if (allSigned) {
             document.isFullySigned = true;
             await transactionalEntityManager.save(document);
           }
-
+  
           return {
             message: 'Documento firmado exitosamente',
             signature: pendingSignature,
             firmaInfo: firmaResult.signatureInfo,
           };
         } else {
-          throw new BadRequestException(
-            'La firma digital no se pudo completar',
-          );
+          throw new BadRequestException('La firma digital no se pudo completar');
         }
       } catch (error) {
-        throw new BadRequestException(
-          `Error al firmar el documento: ${error.message}`,
-        );
+        throw new BadRequestException(`Error al firmar el documento: ${error.message}`);
       }
     });
   }
@@ -357,8 +360,9 @@ export class DocumentoService {
         'document.name',
         'document.fileName',
         'signature.signerType',
+        'signature.isSigned',
       ])
-      .where('signature.signerRut = :rut', { rut })
+      .where('signature.ownerRut = :rut', { rut })
       .andWhere('signature.isSigned = :isSigned', { isSigned: false })
       .andWhere('document.isFullySigned = :isFullySigned', {
         isFullySigned: false,
@@ -387,6 +391,7 @@ export class DocumentoService {
       name: doc.name,
       fileName: doc.fileName,
       typeSign: doc.signatures[0]?.signerType || 'desconocido',
+      isSigned: doc.signatures[0]?.isSigned || false,
     }));
 
     return {
@@ -413,8 +418,8 @@ export class DocumentoService {
       typeSign: string;
       isSigned: boolean;
       isFullySigned: boolean;
-      delegationType: string;
-      delegateRut: string;
+      signerRut: string;
+      ownerRut: string;
     }[];
     total: number;
     page: number;
@@ -423,12 +428,8 @@ export class DocumentoService {
   }> {
     let query = this.documentRepository
       .createQueryBuilder('document')
-      .innerJoin(
-        'document.signatures',
-        'signature',
-        'signature.signerRut = :rut',
-        { rut },
-      )
+      .leftJoinAndSelect('document.signatures', 'signature')
+      .where('signature.ownerRut = :rut OR signature.signerRut = :rut', { rut })
       .select([
         'document.id',
         'document.name',
@@ -436,39 +437,42 @@ export class DocumentoService {
         'document.isFullySigned',
         'signature.signerType',
         'signature.isSigned',
-        'signature.delegationType',
-        'signature.delegateRut',
+        'signature.ownerRut',
+        'signature.signerRut',
       ]);
-
+  
     if (startDate && endDate) {
       query = query.andWhere(
         'document.createdAt BETWEEN :startDate AND :endDate',
         { startDate, endDate },
       );
     }
-
+  
     if (documentName) {
       query = query.andWhere('document.name LIKE :name', {
         name: `%${documentName}%`,
       });
     }
-
+  
     const [documentos, total] = await query
       .skip((page - 1) * limit)
       .take(limit)
       .getManyAndCount();
-
-    const data = documentos.map((doc) => ({
-      id: doc.id,
-      name: doc.name,
-      fileName: doc.fileName,
-      typeSign: doc.signatures[0]?.signerType || 'desconocido',
-      isSigned: doc.signatures[0]?.isSigned,
-      isFullySigned: doc.isFullySigned,
-      delegationType: doc.signatures[0]?.delegationType,
-      delegateRut: doc.signatures[0]?.delegateRut,
-    }));
-
+  
+    const data = documentos.map((doc) => {
+      const relevantSignature = doc.signatures.find(s => s.ownerRut === rut || s.signerRut === rut);
+      return {
+        id: doc.id,
+        name: doc.name,
+        fileName: doc.fileName,
+        typeSign: relevantSignature?.signerType || 'desconocido',
+        isSigned: relevantSignature?.isSigned || false,
+        isFullySigned: doc.isFullySigned,
+        signerRut: relevantSignature?.signerRut || '',
+        ownerRut: relevantSignature?.ownerRut || '',
+      };
+    });
+  
     return {
       data,
       total,
@@ -483,5 +487,42 @@ export class DocumentoService {
       where: { id: id },
       relations: ['signatures'],
     });
+  }
+
+  async findDelegateSignatures(
+    delegateRut: string,
+  ): Promise<DocumentSignature[]> {
+    try {
+      // Primero, verificamos si el delegado existe y está activo
+      const delegate = await this.delegateRepository.findOne({
+        where: { delegateRut:delegateRut, isActive: true, isDeleted: false },
+      });
+      if (!delegate) {
+        throw new NotFoundException(
+          `No se encontró un delegado activo con RUT ${delegateRut}`,
+        );
+      }
+
+      // Busacamos las firmas donde pendientes del owner , las cuales el delegado puede firmar
+      const signatures = await this.documentSignatureRepository.find({
+        where: {
+          ownerRut: delegate.ownerRut,isSigned: false
+        },
+        relations: ['document'],
+      });
+      if (signatures.length === 0) {
+        return []; // Retornamos un array vacío si no hay firmas pendientes
+      }
+
+      return signatures;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      } else {
+        throw new InternalServerErrorException(
+          'Error inesperado al buscar firmas del delegado',
+        );
+      }
+    }
   }
 }

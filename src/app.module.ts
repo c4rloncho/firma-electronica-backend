@@ -10,6 +10,9 @@ import config from './database/config';
 import { join } from 'path';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { AttachmentModule } from './attachment/attachment.module';
+import { DelegateController } from './delegate/delegate.controller';
+import { DelegateService } from './delegate/delegate.service';
+import { DelegateModule } from './delegate/delegate.module';
 
 @Module({
   imports: [
@@ -25,6 +28,7 @@ import { AttachmentModule } from './attachment/attachment.module';
     FuncionarioModule,
     DocumentoModule,
     AttachmentModule,
+    DelegateModule,
   ],
   controllers: [AppController],
   providers: [AppService],
