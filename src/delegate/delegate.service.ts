@@ -153,7 +153,7 @@ export class DelegateService {
     return await this.delegateRepository.save(delegate);
   }
   async getDelegatesRut(rut:string):Promise<Delegate>{
-    const delegate = await this.delegateRepository.findOne({where:{ownerRut:rut, isDeleted:false, isActive:true}})
+    const delegate = await this.delegateRepository.findOne({where:{ownerRut:rut, isDeleted:false}})
     if(!delegate){
       throw new NotFoundException('delegado no encontrado')
     }
