@@ -42,10 +42,6 @@ export class DocumentoService {
     private readonly documentRepository: Repository<Document>,
     @InjectRepository(Delegate, 'secondConnection')
     private readonly delegateRepository: Repository<Delegate>,
-    @InjectRepository(DocumentSignature, 'secondConnection')
-    private readonly documentSignatureRepository: Repository<DocumentSignature>,
-    @InjectRepository(Funcionario, 'default')
-    private readonly funcionarioRepository: Repository<Funcionario>,
     @InjectDataSource('secondConnection')
     private dataSource: DataSource,
     private firmaService: FirmaService,

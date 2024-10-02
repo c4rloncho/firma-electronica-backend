@@ -84,5 +84,8 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
+  },
+  "overrides": {
+    "path-to-regexp": "^6.3.0"
   }
 }

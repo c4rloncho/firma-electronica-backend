@@ -35,7 +35,7 @@ export class AttachmentService {
             .fill(null)
             .map(() => Math.round(Math.random() * 16).toString(16))
             .join('');
-          return cb(null, `${randomName}${extname(file.originalname)}`);
+          return cb(null, `attachment_${randomName}${extname(file.originalname)}`);
         },
       }),
     };
@@ -88,5 +88,20 @@ export class AttachmentService {
         });
       });
     });
+  }
+
+  async getAttachments(id: number): Promise<Attachment[]> {
+    const attachments = await this.attachmentRepository.find({ where: { document: { id } } });
+    if (!attachments || attachments.length === 0) {
+      throw new NotFoundException('No se encontraron anexos para este documento');
+    }
+    return attachments;
+  }
+  async getAttachment(id:number){
+    const attachment = await this.attachmentRepository.findOne({where:{id}});
+    if (!attachment) {
+      throw new NotFoundException(`Anexo con ID ${id} no encontrado`);
+    }
+    return attachment;
   }
 }
