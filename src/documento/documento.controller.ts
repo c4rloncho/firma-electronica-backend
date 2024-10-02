@@ -123,7 +123,6 @@ export class DocumentoController {
         'Content-Disposition',
         `inline; filename="${document.fileName}"`,
       );
-
       createReadStream(filePath).pipe(res);
     } catch (error) {
       if (error instanceof BadRequestException) {
