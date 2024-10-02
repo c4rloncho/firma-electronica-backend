@@ -205,20 +205,33 @@ export class DocumentoService {
         throw new BadRequestException('Ya ha firmado este documento');
       }
   
-      // Buscar la firma pendiente
+      // Buscar la firma pendiente como firmante original
       let pendingSignature = document.signatures.find(
         (s) => !s.isSigned && s.ownerRut === run,
       );
   
-      if (!pendingSignature) {
-        // Buscar todos los delegados activos para el firmante actual
-        const activeDelegates = await transactionalEntityManager.find(Delegate, {
-          where: { delegateRut: run, isActive: true },
-        });
+      // Buscar delegaciones activas
+      const activeDelegations = await transactionalEntityManager.find(Delegate, {
+        where: { delegateRut: run, isActive: true },
+      });
+      // Verificar si es un firmante original y también un delegado activo
+      if (pendingSignature && activeDelegations.length > 0) {
+        const isDelegateForAnotherSigner = activeDelegations.some(delegation =>
+          document.signatures.some(s => s.ownerRut === delegation.ownerRut && s.ownerRut !== run)
+        );
+        
   
-        // Buscar la firma pendiente que corresponda a uno de los propietarios del delegado
+        if (isDelegateForAnotherSigner) {
+          throw new BadRequestException(
+            'Usted es firmante original y delegado de otro firmante en este documento. Por favor, contacte al administrador.',
+          );
+        }
+      }
+  
+      // Si no es firmante original, buscar como delegado
+      if (!pendingSignature) {
         pendingSignature = document.signatures.find(
-          (s) => !s.isSigned && activeDelegates.some(d => d.ownerRut === s.ownerRut)
+          (s) => !s.isSigned && activeDelegations.some(d => d.ownerRut === s.ownerRut)
         );
   
         if (!pendingSignature) {
@@ -231,7 +244,11 @@ export class DocumentoService {
       // Actualizar el signerRut con quien realmente está firmando
       pendingSignature.signerRut = run;
   
-      this.validateSignatureOrder(document.signatures, pendingSignature);
+      try {
+        this.validateSignatureOrder(document.signatures, pendingSignature);
+      } catch (error) {
+        throw new BadRequestException(error.message);
+      }
   
       try {
         const dateObject = new Date(document.date);
@@ -241,8 +258,8 @@ export class DocumentoService {
           document.fileName,
           documentYear,
         );
-
-        const firmaResult = await this.mockService.signdocument(
+  
+        const firmaResult = await this.firmaService.signdocument(
           {
             ...input,
             documentContent: content,
@@ -283,6 +300,8 @@ export class DocumentoService {
       }
     });
   }
+
+  
   private async saveSignedFile(
     signedFile: { content: Buffer; checksum: string },
     document: Document,
