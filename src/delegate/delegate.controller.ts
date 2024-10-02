@@ -38,5 +38,9 @@ export class DelegateController {
   async getDelegates(): Promise<Delegate[]> {
     return this.delegateService.getDelegates();
   }
-
+  @Get(':rut')
+  @HttpCode(HttpStatus.OK)
+  async getDelegatesRut(@Param('rut')rut:string): Promise<Delegate> {
+    return this.delegateService.getDelegatesRut(rut);
+  }
 }

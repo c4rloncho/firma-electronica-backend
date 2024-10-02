@@ -152,5 +152,11 @@ export class DelegateService {
     delegate.isActive = false;
     return await this.delegateRepository.save(delegate);
   }
- 
+  async getDelegatesRut(rut:string):Promise<Delegate>{
+    const delegate = await this.delegateRepository.findOne({where:{ownerRut:rut}})
+    if(!delegate){
+      throw new NotFoundException('delegado no encontrado')
+    }
+    return delegate;
+  }
 }
