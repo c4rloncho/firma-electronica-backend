@@ -395,7 +395,9 @@ export class DocumentoService {
       where: { delegateRut: rut, isActive: true },
     });
   
-    const ownerRuts = [...new Set([...delegates.map((d) => d.ownerRut), rut])];
+    const ownerRuts = delegates.map((d) => d.ownerRut);
+    ownerRuts.push(rut); 
+
   
     let whereCondition: any = {
       signatures: {
@@ -456,73 +458,74 @@ export class DocumentoService {
     startDate?: Date,
     endDate?: Date,
     documentName?: string,
+    status?: 'pending' | 'signed' | 'all'
   ): Promise<{
     data: {
       id: number;
       name: string;
       fileName: string;
-      typeSign: string;
       isSigned: boolean;
-      isFullySigned: boolean;
-      signerRut: string;
+      signatureType: 'owner' | 'delegate';
       ownerRut: string;
+      signedAt: Date | null;
     }[];
     total: number;
     page: number;
     limit: number;
     totalPages: number;
   }> {
-    let query = this.documentRepository
-      .createQueryBuilder('document')
+    const delegates = await this.delegateRepository.find({
+      where: { delegateRut: rut, isActive: true },
+    });
+
+    const ownerRuts = [...new Set([...delegates.map((d) => d.ownerRut), rut])];
+
+    const queryBuilder = this.documentRepository.createQueryBuilder('document')
       .leftJoinAndSelect('document.signatures', 'signature')
-      .where('signature.ownerRut = :rut OR signature.signerRut = :rut', { rut })
-      .select([
-        'document.id',
-        'document.name',
-        'document.fileName',
-        'document.isFullySigned',
-        'signature.signerType',
-        'signature.isSigned',
-        'signature.ownerRut',
-        'signature.signerRut',
-      ]);
+      .where('signature.ownerRut IN (:...ownerRuts)', { ownerRuts });
+
+    // Aplicar filtro de estado si se proporciona
+    if (status === 'pending') {
+      queryBuilder.andWhere('signature.isSigned = :isSigned', { isSigned: false });
+    } else if (status === 'signed') {
+      queryBuilder.andWhere('signature.isSigned = :isSigned', { isSigned: true });
+    }
 
     if (startDate && endDate) {
-      query = query.andWhere(
-        'document.createdAt BETWEEN :startDate AND :endDate',
-        { startDate, endDate },
-      );
+      queryBuilder.andWhere('document.date BETWEEN :startDate AND :endDate', { startDate, endDate });
+    } else if (startDate) {
+      queryBuilder.andWhere('document.date >= :startDate', { startDate });
+    } else if (endDate) {
+      queryBuilder.andWhere('document.date <= :endDate', { endDate });
     }
 
     if (documentName) {
-      query = query.andWhere('document.name LIKE :name', {
-        name: `%${documentName}%`,
-      });
+      queryBuilder.andWhere('document.name LIKE :name', { name: `%${documentName}%` });
     }
 
-    const [documentos, total] = await query
+    const [documents, total] = await queryBuilder
+      .orderBy('document.date', 'DESC')
+      .addOrderBy('signature.isSigned', 'ASC') // Primero las firmas pendientes
       .skip((page - 1) * limit)
       .take(limit)
       .getManyAndCount();
 
-    const data = documentos.map((doc) => {
-      const relevantSignature = doc.signatures.find(
-        (s) => s.ownerRut === rut || s.signerRut === rut,
-      );
-      return {
-        id: doc.id,
-        name: doc.name,
-        fileName: doc.fileName,
-        typeSign: relevantSignature?.signerType || 'desconocido',
-        isSigned: relevantSignature?.isSigned || false,
-        isFullySigned: doc.isFullySigned,
-        signerRut: relevantSignature?.signerRut || '',
-        ownerRut: relevantSignature?.ownerRut || '',
-      };
-    });
+    const formattedData = documents.flatMap((doc) =>
+      doc.signatures
+        .filter((sig) => ownerRuts.includes(sig.ownerRut))
+        .map((sig) => ({
+          id: doc.id,
+          name: doc.name,
+          fileName: doc.fileName,
+          isSigned: sig.isSigned,
+          signatureType: sig.ownerRut === rut ? ('owner' as const) : ('delegate' as const),
+          ownerRut: sig.ownerRut,
+          signedAt: sig.signedAt,
+        }))
+    );
 
     return {
-      data,
+      data: formattedData,
       total,
       page,
       limit,
