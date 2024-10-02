@@ -21,9 +21,9 @@
   },
   "dependencies": {
     "@nestjs/axios": "^3.0.3",
-    "@nestjs/common": "^10.0.0",
+    "@nestjs/common": "^10.4.4",
     "@nestjs/config": "^3.2.3",
-    "@nestjs/core": "^10.0.0",
+    "@nestjs/core": "^10.4.4",
     "@nestjs/jwt": "^10.2.0",
     "@nestjs/mapped-types": "*",
     "@nestjs/platform-express": "^10.4.4",
@@ -38,10 +38,13 @@
     "firmaelectronica-back": "file:",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
+    "path-to-regexp": "^8.2.0",
     "pg": "^8.13.0",
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.8.1",
+    "serve-static": "^1.16.2",
     "sharp": "^0.33.5",
+    "superagent": "^10.1.0",
     "typeorm": "^0.3.20"
   },
   "devDependencies": {
@@ -85,7 +88,7 @@
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
   },
-  "overrides": {
-    "path-to-regexp": "^6.3.0"
+  "resolutions": {
+    "path-to-regexp": "^8.2.0"
   }
 }

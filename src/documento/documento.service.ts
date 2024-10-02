@@ -8,8 +8,6 @@ import { CreateDocumentDto } from './dto/create-document.dto';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import {
   Between,
-  Brackets,
-  createQueryBuilder,
   DataSource,
   EntityManager,
   In,
@@ -34,6 +32,10 @@ import { extname, join } from 'path';
 import { Funcionario } from 'src/funcionario/entities/funcionario.entity';
 import { Delegate } from 'src/delegate/entities/delegado.entity';
 
+
+/**
+ * Servicio para manejar operaciones relacionadas con documentos y firmas.
+ */
 @Injectable()
 export class DocumentoService {
   constructor(
@@ -46,6 +48,13 @@ export class DocumentoService {
     private firmaService: FirmaService,
   ) {}
 
+  /**
+   * Crea un nuevo documento y guarda las firmas asociadas.
+   * @param createDocumentDto DTO con la información del documento a crear.
+   * @param file Archivo del documento.
+   * @returns Promesa que resuelve al documento creado.
+   * @throws BadRequestException si los RUTs no son únicos o el orden de firmantes es incorrecto.
+   */
   async createDocument(
     createDocumentDto: CreateDocumentDto,
     file: Express.Multer.File,
@@ -176,7 +185,14 @@ export class DocumentoService {
     const filePath = join(uploadPath, fileName);
     await fsp.writeFile(filePath, file.buffer);
   }
-
+  /**
+   * Firma un documento.
+   * @param input DTO con la información de la firma.
+   * @param imageBuffer Buffer de la imagen de la firma.
+   * @returns Promesa que resuelve a la información de la firma realizada.
+   * @throws BadRequestException si el documento ya ha sido firmado o no corresponde firmar.
+   * @throws NotFoundException si el documento no se encuentra.
+   */
   async signDocument(input: SignDocumentDto, imageBuffer: Express.Multer.File) {
     return this.dataSource.transaction(async (transactionalEntityManager) => {
       const { documentId, run } = input;
@@ -349,6 +365,14 @@ export class DocumentoService {
     return crypto.createHash('md5').update(buffer).digest('hex');
   }
 
+
+    /**
+   * Obtiene un documento por su ID.
+   * @param id ID del documento.
+   * @returns Promesa que resuelve a la información del documento.
+   * @throws BadRequestException si el ID es inválido.
+   * @throws NotFoundException si el documento no se encuentra.
+   */
   async getById(id: number) {
     if (!id || isNaN(id)) {
       throw new BadRequestException(
@@ -378,6 +402,17 @@ export class DocumentoService {
     }
   }
 
+
+    /**
+   * Obtiene las firmas pendientes para un RUT dado.
+   * @param rut RUT del firmante.
+   * @param page Número de página para la paginación.
+   * @param limit Límite de resultados por página.
+   * @param startDate Fecha de inicio para filtrar.
+   * @param endDate Fecha de fin para filtrar.
+   * @param documentName Nombre del documento para filtrar.
+   * @returns Promesa que resuelve a un objeto con los datos paginados de las firmas pendientes.
+   */
   async getPendingSignatures(
     rut: string,
     page: number = 1,
@@ -459,7 +494,17 @@ export class DocumentoService {
       totalPages: Math.ceil(total / limit),
     };
   }
-
+ /**
+   * Obtiene todos los documentos asociados a un RUT.
+   * @param rut RUT del firmante o delegado.
+   * @param page Número de página para la paginación.
+   * @param limit Límite de resultados por página.
+   * @param startDate Fecha de inicio para filtrar.
+   * @param endDate Fecha de fin para filtrar.
+   * @param documentName Nombre del documento para filtrar.
+   * @param status Estado de los documentos a obtener ('pending', 'signed', 'all').
+   * @returns Promesa que resuelve a un objeto con los datos paginados de los documentos.
+   */
   async getAllDocumentsByRut(
     rut: string,
     page: number = 1,
@@ -541,7 +586,11 @@ export class DocumentoService {
       totalPages: Math.ceil(total / limit),
     };
   }
-
+  /**
+   * Obtiene la información detallada de un documento por su ID.
+   * @param id ID del documento.
+   * @returns Promesa que resuelve a la información detallada del documento, incluyendo sus firmas.
+   */
   async getInfoDocumentId(id: number) {
     return await this.documentRepository.find({
       where: { id: id },

@@ -21,7 +21,12 @@ export class FirmaService {
 
 
   ) {}
-
+  /**
+   * Crea la configuración para AgileSigner.
+   * @param imageBuffer - Buffer de la imagen de la firma.
+   * @param heightImage - Altura de la imagen de la firma.
+   * @returns Promesa que resuelve a la configuración de AgileSigner en formato XML.
+   */
   private async createAgileSignerConfig(
     imageBuffer: Express.Multer.File,
     heightImage: number,
@@ -59,7 +64,11 @@ export class FirmaService {
       </Application>
     </AgileSignerConfig>`;
   }
-
+  /**
+   * Genera un token JWT para la firma del documento.
+   * @param input - Datos de entrada para la firma del documento.
+   * @returns Token JWT generado.
+   */
   private generateToken(input: SignDocumentDto) {
     const now = new Date();
     const expirationDate = new Date(now.getTime() + 30 * 60 * 1000);
@@ -74,7 +83,13 @@ export class FirmaService {
       expiration: formattedExpiration,
     });
   }
-
+  /**
+   * Firma un documento utilizando api de firmagob firma digital.
+   * @param input - Datos de entrada para la firma del documento, incluyendo el contenido  y el checksum.
+   * @param imageBuffer - Buffer de la imagen de la firma.
+   * @returns Promesa que resuelve a un objeto con la información de la firma realizada.
+   * @throws HttpException si ocurre un error durante el proceso de firma.
+   */
   async signdocument(
     input: SignDocumentDto & { documentContent: string; documentChecksum: string },
     imageBuffer: Express.Multer.File,
@@ -122,7 +137,12 @@ export class FirmaService {
       );
     }
   }  
-
+  /**
+   * Procesa la respuesta del servicio de firma digital.
+   * @param responseData - Datos de respuesta del servicio de firma.
+   * @returns Objeto con los archivos firmados procesados y metadatos adicionales.
+   * @throws HttpException si la respuesta del servicio de firma es inválida.
+   */
   private processResponse(responseData: SignResponse): {
     signedFiles: {
       content: Buffer;
