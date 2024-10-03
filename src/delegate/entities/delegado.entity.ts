@@ -1,5 +1,5 @@
 import { DocumentSignature } from "src/documento/entities/document-signature.entity";
-import { Entity, Column, PrimaryColumn, OneToMany, PrimaryGeneratedColumn } from "typeorm";
+import { Entity, Column, PrimaryColumn, OneToMany, PrimaryGeneratedColumn, DeleteDateColumn } from "typeorm";
 @Entity({ database: 'secondConnection' })
 export class Delegate {
   @PrimaryGeneratedColumn()
@@ -20,7 +20,7 @@ export class Delegate {
   @Column({ default: false })
   isActive: boolean;
 
-  @Column({ default: false })
-  isDeleted: boolean;
+  @DeleteDateColumn()
+  deletedAt: Date;
 
 }
