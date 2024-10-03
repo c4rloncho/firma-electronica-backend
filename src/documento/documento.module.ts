@@ -8,7 +8,6 @@ import { FirmaModule } from 'src/firma/firma.module';
 import { Attachment } from '../attachment/entities/attachment .entity';
 import { Funcionario } from 'src/funcionario/entities/funcionario.entity';
 import { Delegate } from 'src/delegate/entities/delegado.entity';
-import { MockFirmaService } from './mock-firma.service';
 
 @Module({
   imports: [
@@ -21,7 +20,7 @@ import { MockFirmaService } from './mock-firma.service';
     FirmaModule,
   ],
   controllers: [DocumentoController],
-  providers: [DocumentoService,MockFirmaService],
+  providers: [DocumentoService],
   exports: [DocumentoService],
 })
 export class DocumentoModule {}
