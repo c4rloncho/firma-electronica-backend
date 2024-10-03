@@ -597,4 +597,43 @@ export class DocumentoService {
       relations: ['signatures'],
     });
   }
+  async findFullySigned(
+    page: number = 1, 
+    limit: number = 10, 
+    startDate?: string, 
+    endDate?: string,
+    name?: string
+  ): Promise<{ data: Document[], total: number, page: number, lastPage: number }> {
+    const skip = (page - 1) * limit;
+
+    let whereClause: any = { isFullySigned: true };
+
+    if (startDate && endDate) {
+      whereClause.date = Between(new Date(startDate), new Date(endDate));
+    }
+
+    if (name) {
+      whereClause.name = Like(`%${name}%`);
+    }
+
+    const [documents, total] = await this.documentRepository.findAndCount({
+      where: whereClause,
+      skip,
+      take: limit,
+      order: { date: 'DESC' }
+    });
+
+    if (documents.length === 0) {
+      throw new NotFoundException('No se encontraron documentos completamente firmados para los criterios especificados');
+    }
+
+    const lastPage = Math.ceil(total / limit);
+
+    return {
+      data: documents,
+      total,
+      page,
+      lastPage,
+    };
+  }
 }

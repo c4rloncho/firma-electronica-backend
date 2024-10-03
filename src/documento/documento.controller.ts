@@ -102,6 +102,21 @@ export class DocumentoController {
     }
   }
 
+  @Get('full-signed')
+  async getFullySigned(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('name') name?: string
+  ) {
+    try {
+      return await this.documentoService.findFullySigned(page, limit, startDate, endDate, name);
+    } catch (error) {
+      throw error;
+    }
+  }
+
   @Get('get-by-id/:id')
   async getDocumentById(
     @Param('id', ParseIntPipe) id: number,
