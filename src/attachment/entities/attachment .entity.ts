@@ -15,7 +15,8 @@ export class Attachment {
   @ManyToOne(() => Document, document => document.attachments)
   document: Document;
 
-  @Column()
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   uploadDate: Date;
+
 
 }

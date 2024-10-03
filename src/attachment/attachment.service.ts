@@ -1,11 +1,12 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { Document } from '../documento/entities/document.entity';
 import { CreateAttachmentDto } from './dto/create-attachment.dto';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import * as fs from 'fs';
+
 import { Attachment } from './entities/attachment .entity';
 
 @Injectable()
@@ -14,7 +15,7 @@ export class AttachmentService {
     @InjectRepository(Attachment,'secondConnection')
     private attachmentRepository: Repository<Attachment>,
     @InjectRepository(Document,'secondConnection')
-    private documentRepository: Repository<Document>
+    private documentRepository: Repository<Document>,
   ) {}
 
   static getStorageOptions() {
@@ -41,16 +42,14 @@ export class AttachmentService {
     };
   }
 
-  async addAttachment(file: Express.Multer.File, createAttachmentDto: CreateAttachmentDto): Promise<Attachment> {
+  async addAttachment(file: Express.Multer.File, createAttachmentDto: CreateAttachmentDto): Promise<Partial<Attachment>> {
     const { documentId, name } = createAttachmentDto;
 
-    // Verificar si el documento existe
-    const document = await this.documentRepository.findOne({where: {id: documentId}});
+    const document = await this.documentRepository.findOne({ where: { id: documentId }, relations: ['attachments'] });
     if (!document) {
       throw new NotFoundException(`Document with ID ${documentId} not found`);
     }
 
-    // Usar las opciones de almacenamiento para guardar el archivo
     const storageOptions = AttachmentService.getStorageOptions();
     const storage = storageOptions.storage as any;
 
@@ -66,22 +65,25 @@ export class AttachmentService {
           fs.writeFile(filePath, file.buffer, async (err) => {
             if (err) return reject(new BadRequestException('Failed to save the file'));
 
-            // Crear y guardar el attachment en la base de datos
             const attachment = this.attachmentRepository.create({
-              name: name ,
+              name: name,
               fileName: filename,
               document: document,
               uploadDate: new Date()
             });
-           
 
             try {
               const savedAttachment = await this.attachmentRepository.save(attachment);
-               //asociacion
-                document.attachments.push(savedAttachment);
-                await this.documentRepository.save(document) ;
-              resolve(savedAttachment);
+              document.attachments.push(savedAttachment);
+              await this.documentRepository.save(document);
+              resolve({
+                id: savedAttachment.id,
+                name: savedAttachment.name,
+                fileName: savedAttachment.fileName,
+                uploadDate: savedAttachment.uploadDate,
+              });
             } catch (error) {
+              console.error('Error saving attachment:', error);
               reject(new BadRequestException('Failed to save attachment info to database'));
             }
           });
@@ -97,11 +99,19 @@ export class AttachmentService {
     }
     return attachments;
   }
+
   async getAttachment(id:number){
     const attachment = await this.attachmentRepository.findOne({where:{id}});
     if (!attachment) {
       throw new NotFoundException(`Anexo con ID ${id} no encontrado`);
     }
-    return attachment;
+
+    const dateObject = new Date(attachment.uploadDate);
+    const documentYear = dateObject.getFullYear().toString();
+    const filePath = `./uploads/${documentYear}/${attachment.fileName}`;
+    return {
+      ...attachment,
+      filePath,
+    };
   }
 }
