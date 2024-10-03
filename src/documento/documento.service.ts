@@ -11,6 +11,7 @@ import {
   DataSource,
   EntityManager,
   In,
+  IsNull,
   LessThanOrEqual,
   Like,
   MoreThan,
@@ -63,7 +64,7 @@ export class DocumentoService {
   ): Promise<Document> {
     return this.documentRepository.manager.transaction(
       async (transactionalEntityManager) => {
-        const { name, signers } = createDocumentDto;
+        const { name, signers,creatorRut } = createDocumentDto;
 
         // Verificar RUTs únicos
         this.verifyUniqueRuts(signers);
@@ -79,6 +80,7 @@ export class DocumentoService {
           transactionalEntityManager,
           name,
           randomName,
+          creatorRut,
         );
 
         // Crear y guardar las firmas
@@ -132,10 +134,12 @@ export class DocumentoService {
     transactionalEntityManager: EntityManager,
     name: string,
     fileName: string,
+    creatorRut:string,
   ): Promise<Document> {
     const document = transactionalEntityManager.create(Document, {
       name,
       fileName,
+      creatorRut,
       date: new Date(),
     });
     return transactionalEntityManager.save(document);
@@ -639,5 +643,33 @@ export class DocumentoService {
       page,
       lastPage,
     };
+  }
+
+  async deleteDocument(rut: string, idDocument: number) {
+    // Buscar el documento con sus firmas
+    const document = await this.documentRepository.findOne({
+      where: { creatorRut: rut, id: idDocument,deletedAt:IsNull() },
+      relations: ['signatures']
+    });
+  
+    // Verificar si el documento existe
+    if (!document) {
+      throw new NotFoundException('Documento no encontrado');
+    }
+  
+    // Verificar si el documento ha sido firmado por un firmador
+    const isSigned = document.signatures.some(s => 
+      s.isSigned && s.signerType === SignerType.FIRMADOR
+    );
+  
+    if (isSigned) {
+      throw new BadRequestException('No se puede eliminar un documento que ya ha sido firmado');
+    }
+  
+    // hacer softDelete
+    document.deletedAt = new Date();
+    this.documentRepository.save(document)
+
+    return { message: 'Documento eliminado exitosamente' };
   }
 }

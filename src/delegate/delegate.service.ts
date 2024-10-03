@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Funcionario } from 'src/funcionario/entities/funcionario.entity';
-import { Repository } from 'typeorm';
+import { IsNull, Not, Repository } from 'typeorm';
 import { Delegate } from './entities/delegado.entity';
 import { DocumentSignature } from 'src/documento/entities/document-signature.entity';
 
@@ -26,7 +26,7 @@ export class DelegateService {
    */
   async getDelegates() {
     const delegates = await this.delegateRepository.find({
-      where: { isDeleted: false },
+      where: { deletedAt:IsNull() },
     });
     return delegates;
   }
@@ -62,7 +62,7 @@ export class DelegateService {
       }
 
       const existingDelegate = await this.delegateRepository.findOne({
-        where: { ownerRut: ownerRut, isDeleted: false },
+        where: { ownerRut: ownerRut, deletedAt:IsNull() },
       });
 
       if (existingDelegate) {
@@ -75,7 +75,7 @@ export class DelegateService {
         where: {
           ownerRut: ownerRut,
           delegateRut: delegateRut,
-          isDeleted: true,
+          deletedAt: Not(IsNull()),
         },
       });
 
@@ -89,7 +89,7 @@ export class DelegateService {
         pendingDelegate.createdAt = new Date(); // Actualizamos la fecha de creación
       }
 
-      pendingDelegate.isDeleted = false;
+      pendingDelegate.deletedAt = null;
 
       return await this.delegateRepository.save(pendingDelegate);
     } catch (error) {
@@ -113,7 +113,7 @@ export class DelegateService {
    */
   async softDeleteDelegate(ownerRut: string) {
     const existingDelegate = await this.delegateRepository.findOne({
-      where: { ownerRut, isDeleted: false },
+      where: { ownerRut, deletedAt:IsNull() },
     });
 
     if (!existingDelegate) {
@@ -123,7 +123,7 @@ export class DelegateService {
       });
     }
 
-    existingDelegate.isDeleted = true;
+    existingDelegate.deletedAt = new Date();
     existingDelegate.isActive = false;
     await this.delegateRepository.save(existingDelegate);
 
@@ -141,7 +141,7 @@ export class DelegateService {
    */
   async activateDelegate(ownerRut: string): Promise<{message:string,delegate:Delegate}> {
     const delegate = await this.delegateRepository.findOne({
-      where: { ownerRut, isDeleted: false },
+      where: { ownerRut, deletedAt:IsNull()},
     });
 
     if (!delegate) {
@@ -167,7 +167,7 @@ export class DelegateService {
    */
   async deactivateDelegate(ownerRut: string): Promise<Delegate> {
     const delegate = await this.delegateRepository.findOne({
-      where: { ownerRut, isDeleted: false },
+      where: { ownerRut,  deletedAt: IsNull() },
     });
 
     if (!delegate) {
@@ -189,7 +189,7 @@ export class DelegateService {
    * @throws NotFoundException si no se encuentra el delegado.
    */
   async getDelegatesRut(rut:string):Promise<Delegate>{
-    const delegate = await this.delegateRepository.findOne({where:{ownerRut:rut, isDeleted:false}})
+    const delegate = await this.delegateRepository.findOne({where:{ownerRut:rut, deletedAt:IsNull()}})
     if(!delegate){
       throw new NotFoundException('delegado no encontrado')
     }

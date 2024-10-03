@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   DefaultValuePipe,
+  Delete,
   Get,
   HttpCode,
   HttpException,
@@ -11,6 +12,7 @@ import {
   Logger,
   NotFoundException,
   Param,
+  ParseArrayPipe,
   ParseBoolPipe,
   ParseIntPipe,
   Post,
@@ -222,4 +224,14 @@ export class DocumentoController {
     }
   }
 
+  @Delete()
+  async deleteDocument(@Body() input:{rut:string,idDocument:number}){
+    try {
+      return this.documentoService.deleteDocument(input.rut,input.idDocument);
+    }  catch (error) {
+      // Registra el error o manéjalo apropiadamente
+      console.error('Error al eliminar el documento:', error);
+      throw new HttpException('No se pudo eliminar el documento', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  } 
 }

@@ -1,4 +1,4 @@
-import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from "typeorm";
+import { Column, DeleteDateColumn, Entity, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 import { DocumentSignature } from "./document-signature.entity";
 import { Attachment } from "../../attachment/entities/attachment .entity";
 
@@ -15,6 +15,12 @@ export class Document {
 
   @Column({ type: 'date' })
   date: Date;
+
+  @DeleteDateColumn()
+  deletedAt: Date;
+  
+  @Column()
+  creatorRut:string;
 
   @OneToMany(() => DocumentSignature, signature => signature.document)
   signatures: DocumentSignature[];
