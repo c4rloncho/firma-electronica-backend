@@ -32,7 +32,6 @@ import * as crypto from 'crypto';
 import { extname, join } from 'path';
 import { Funcionario } from 'src/funcionario/entities/funcionario.entity';
 import { Delegate } from 'src/delegate/entities/delegado.entity';
-import { MockFirmaService } from './mock-firma.service';
 
 
 /**
@@ -48,7 +47,6 @@ export class DocumentoService {
     @InjectDataSource('secondConnection')
     private dataSource: DataSource,
     private firmaService: FirmaService,
-    private mockService: MockFirmaService
   ) {}
 
   /**
@@ -275,7 +273,7 @@ export class DocumentoService {
           documentYear,
         );
   
-        const firmaResult = await this.mockService.signdocument(
+        const firmaResult = await this.firmaService.signdocument(
           {
             ...input,
             documentContent: content,
