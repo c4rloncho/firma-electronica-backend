@@ -19,7 +19,7 @@ export class Document {
   @DeleteDateColumn()
   deletedAt: Date;
   
-  @Column()
+  @Column({nullable:true})
   creatorRut:string;
 
   @OneToMany(() => DocumentSignature, signature => signature.document)
