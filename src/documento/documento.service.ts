@@ -667,8 +667,7 @@ export class DocumentoService {
     }
   
     // hacer softDelete
-    document.deletedAt = new Date();
-    this.documentRepository.save(document)
+    await this.documentRepository.softDelete(document.id);
 
     return { message: 'Documento eliminado exitosamente' };
   }

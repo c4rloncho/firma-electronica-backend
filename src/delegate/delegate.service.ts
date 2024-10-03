@@ -122,10 +122,9 @@ export class DelegateService {
         message: `No se encontró un delegado activo para el RUT ${ownerRut}`,
       });
     }
-
-    existingDelegate.deletedAt = new Date();
-    existingDelegate.isActive = false;
-    await this.delegateRepository.save(existingDelegate);
+    await this.delegateRepository.update(existingDelegate.id, { isActive: false });
+    await this.delegateRepository.softDelete(existingDelegate.id)
+  
 
     return {
       success: true,
