@@ -57,12 +57,13 @@ export class DocumentoService {
    * @throws BadRequestException si los RUTs no son únicos o el orden de firmantes es incorrecto.
    */
   async createDocument(
+    creatorRut:string,
     createDocumentDto: CreateDocumentDto,
     file: Express.Multer.File,
   ): Promise<Document> {
     return this.documentRepository.manager.transaction(
       async (transactionalEntityManager) => {
-        const { name, signers,creatorRut } = createDocumentDto;
+        const { name, signers } = createDocumentDto;
 
         // Verificar RUTs únicos
         this.verifyUniqueRuts(signers);
@@ -197,9 +198,9 @@ export class DocumentoService {
    * @throws BadRequestException si el documento ya ha sido firmado o no corresponde firmar.
    * @throws NotFoundException si el documento no se encuentra.
    */
-  async signDocument(input: SignDocumentDto, imageBuffer: Express.Multer.File) {
+  async signDocument(run:string,input: SignDocumentDto, imageBuffer: Express.Multer.File) {
     return this.dataSource.transaction(async (transactionalEntityManager) => {
-      const { documentId, run } = input;
+      const { documentId } = input;
       const document = await transactionalEntityManager.findOne(Document, {
         where: { id: parseInt(documentId) },
         relations: ['signatures'],
