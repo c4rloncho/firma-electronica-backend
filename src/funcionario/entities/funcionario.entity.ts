@@ -11,7 +11,7 @@ export class Funcionario {
   @Column({ type: 'varchar', length: 4, nullable: true })
   iniciales: string;
 
-  @Column({ type: 'int', nullable: true })
+  @Column({ type: 'int' })
   activo: number;
 
   @Column({ type: 'varchar', length: 90, nullable: true })

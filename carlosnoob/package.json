@@ -1,0 +1,24 @@
+{
+  "name": "carlosnoob",
+  "displayName": "carlosnoob",
+  "description": "primer tema",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.94.0"
+  },
+  "categories": [
+    "Themes"
+  ],
+  "contributes": {
+    "themes": [
+      {
+        "label": "CarlonchoTheme+",
+        "uiTheme": "vs-dark",
+        "path": "./themes/CarlonchoTheme+-color-theme.json"
+      }
+    ]
+  },
+  "dependencies": {
+    "carlosnoob": "file:"
+  }
+}
