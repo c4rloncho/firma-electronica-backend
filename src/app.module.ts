@@ -13,6 +13,7 @@ import { AttachmentModule } from './attachment/attachment.module';
 import { DelegateController } from './delegate/delegate.controller';
 import { DelegateService } from './delegate/delegate.service';
 import { DelegateModule } from './delegate/delegate.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { DelegateModule } from './delegate/delegate.module';
     DocumentoModule,
     AttachmentModule,
     DelegateModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

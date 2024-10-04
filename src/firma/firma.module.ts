@@ -18,7 +18,7 @@ import { Funcionario } from 'src/funcionario/entities/funcionario.entity';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET'),
+        secret: configService.get<string>('FIRMAGOB_JWT_SECRET'),
         signOptions: { expiresIn: '30m' }, // 30 minutos
       }),
       inject: [ConfigService],
