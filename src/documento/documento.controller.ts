@@ -227,20 +227,13 @@ export class DocumentoController {
   @Delete(':rut/:idDocument')
   async deleteDocument(
     @Param('rut') rut: string,
-    @Param('idDocument', ParseIntPipe) idDocument: number
+    @Param('idDocument',ParseIntPipe) idDocument: number
   ) {
     try {
       return await this.documentoService.deleteDocument(rut, idDocument);
     } catch (error) {
       console.error('Error al eliminar el documento:', error);
-      
-      if (error instanceof NotFoundException) {
-        throw new HttpException(error.message, HttpStatus.NOT_FOUND);
-      } else if (error instanceof BadRequestException) {
-        throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
-      } else {
-        throw new HttpException('No se pudo eliminar el documento', HttpStatus.INTERNAL_SERVER_ERROR);
-      }
+      throw new HttpException('No se pudo eliminar el documento', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 }
