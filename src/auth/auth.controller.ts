@@ -9,7 +9,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
 
-  @Post('/validate')
+  @Post('/login')
   async validateRut(@Body()input:LoginDto){
     try {
       return this.authService.validateEmployee(input);

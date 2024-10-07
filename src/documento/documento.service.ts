@@ -280,7 +280,9 @@ export class DocumentoService {
             documentContent: content,
             documentChecksum: checksum,
           },
+          run,
           imageBuffer,
+
         );
   
         if (firmaResult.success) {
