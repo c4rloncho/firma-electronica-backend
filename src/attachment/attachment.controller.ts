@@ -1,4 +1,4 @@
-import { Controller, Post, UseInterceptors, UploadedFile, Body, BadRequestException, Get, Param, ParseIntPipe, InternalServerErrorException, NotFoundException, Res } from '@nestjs/common';
+import { Controller, Post, UseInterceptors, UploadedFile, Body, BadRequestException, Get, Param, ParseIntPipe, InternalServerErrorException, NotFoundException, Res, UseGuards, Req } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Express } from 'express';
 import { CreateAttachmentDto } from './dto/create-attachment.dto';
@@ -7,23 +7,29 @@ import { Attachment } from './entities/attachment .entity';
 import { createReadStream, existsSync } from 'fs';
 import { join } from 'path';
 import { Response } from 'express';
+import { AuthGuard } from '@nestjs/passport';
 @Controller('attachment')
 export class AttachmentController {
   constructor(private readonly attachmentService: AttachmentService) {}
 
+  //creador del documento solo el puede subir anexos
   @Post()
+  @UseGuards(AuthGuard('jwt'))
   @UseInterceptors(FileInterceptor('file'))
   async uploadFile(
+    @Req() req,
     @UploadedFile() file: Express.Multer.File,
     @Body() createAttachmentDto: CreateAttachmentDto
   ) {
+    const user = req.user;
     try {
-      return this.attachmentService.addAttachment(file,createAttachmentDto)
+      return this.attachmentService.addAttachment(file,createAttachmentDto,user.rut)
     } catch (error) {
       
     }
   }
   @Get('document/:id')
+  @UseGuards(AuthGuard('jwt'))
   async getAttachmentsByDocument(@Param('id', ParseIntPipe) id: number): Promise<Attachment[]> {
     try {
       return await this.attachmentService.getAttachments(id);

@@ -48,7 +48,6 @@ export class DelegateController {
   @HttpCode(HttpStatus.OK)
   async activateDelegate(
     @Req() req,
-    @Param('ownerRut') ownerRut: string,
   ): Promise<{ message: string; delegate: Delegate }> {
     const user: User = req.user;
     return this.delegateService.activateDelegate(user.rut);

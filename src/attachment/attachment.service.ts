@@ -42,10 +42,10 @@ export class AttachmentService {
     };
   }
 
-  async addAttachment(file: Express.Multer.File, createAttachmentDto: CreateAttachmentDto): Promise<Partial<Attachment>> {
+  async addAttachment(file: Express.Multer.File, createAttachmentDto: CreateAttachmentDto,rut:string): Promise<Partial<Attachment>> {
     const { documentId, name } = createAttachmentDto;
 
-    const document = await this.documentRepository.findOne({ where: { id: documentId }, relations: ['attachments'] });
+    const document = await this.documentRepository.findOne({ where: { id: documentId,creatorRut:rut}, relations: ['attachments'] });
     if (!document) {
       throw new NotFoundException(`Document with ID ${documentId} not found`);
     }
