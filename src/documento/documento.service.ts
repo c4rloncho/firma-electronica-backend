@@ -382,7 +382,7 @@ export class DocumentoService {
    * @throws BadRequestException si el ID es inválido.
    * @throws NotFoundException si el documento no se encuentra.
    */
-  async getById(id: number) {
+  async getById(id: number, user:User) {
     if (!id || isNaN(id)) {
       throw new BadRequestException(
         'ID inválido. Debe ser un número entero positivo.',
