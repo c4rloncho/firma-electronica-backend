@@ -6,9 +6,6 @@ export class CreateDocumentDto {
     @IsString()
     @IsNotEmpty()
     name: string;
-
-    @IsString()
-    creatorRut:string;
     
     @IsArray()
     @ValidateNested({ each: true })

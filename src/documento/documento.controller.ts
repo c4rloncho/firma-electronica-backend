@@ -17,8 +17,10 @@ import {
   ParseIntPipe,
   Post,
   Query,
+  Req,
   Res,
   UploadedFile,
+  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { DocumentoService } from './documento.service';
@@ -30,6 +32,10 @@ import { extname, join } from 'path';
 import { ConfigService } from '@nestjs/config';
 import { createReadStream, existsSync } from 'fs';
 import { Response } from 'express';
+import { AuthGuard } from '@nestjs/passport';
+import { CargosGuard } from 'src/auth/cargos.guard';
+import { Cargos } from 'src/auth/cargos.decorator';
+import { Cargo } from 'src/auth/dto/cargo.enum';
 
 @Controller('document')
 export class DocumentoController {
@@ -40,11 +46,14 @@ export class DocumentoController {
   ) {}
 
   @Post('create')
+  @UseGuards(AuthGuard('jwt'))
   @UseInterceptors(FileInterceptor('file'))
   async createDocument(
+    @Req() req,
     @Body() createDocumentDto: CreateDocumentDto,
     @UploadedFile() file: Express.Multer.File,
   ) {
+    const creatorRut = req.user.rut;
     if (!file) {
       throw new HttpException(
         'No se ha proporcionado ningún archivo',
@@ -54,6 +63,7 @@ export class DocumentoController {
 
     try {
       const document = await this.documentoService.createDocument(
+        creatorRut,
         createDocumentDto,
         file,
       );
@@ -79,17 +89,21 @@ export class DocumentoController {
   }
 
   @Post('sign')
+  @UseGuards(AuthGuard('jwt'))
   @UseInterceptors(FileInterceptor('image'))
   async signDocument(
+    @Req() req,
     @Body() signDocumentDto: SignDocumentDto,
     @UploadedFile() imageFile: Express.Multer.File,
   ) {
+    const rut = req.user.rut;
     if (!imageFile) {
       throw new BadRequestException('La imagen de firma es requerida');
     }
 
     try {
       const result = await this.documentoService.signDocument(
+        rut,
         signDocumentDto,
         imageFile,
       );
@@ -105,6 +119,8 @@ export class DocumentoController {
   }
 
   @Get('full-signed')
+  @UseGuards(AuthGuard('jwt'),CargosGuard)
+  @Cargos(Cargo.ADMIN)
   async getFullySigned(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
@@ -120,6 +136,7 @@ export class DocumentoController {
   }
 
   @Get('get-by-id/:id')
+  @UseGuards(AuthGuard('jwt'))
   async getDocumentById(
     @Param('id', ParseIntPipe) id: number,
     @Res() res: Response,

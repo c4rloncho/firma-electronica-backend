@@ -3,12 +3,13 @@ import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 
+
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
 
-  @Post('/validate')
+  @Post('/login')
   async validateRut(@Body()input:LoginDto){
     try {
       return this.authService.validateEmployee(input);

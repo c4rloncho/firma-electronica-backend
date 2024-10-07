@@ -69,7 +69,7 @@ export class FirmaService {
    * @param input - Datos de entrada para la firma del documento.
    * @returns Token JWT generado.
    */
-  private generateToken(input: SignDocumentDto) {
+  private generateToken(input: SignDocumentDto,run:string) {
     const now = new Date();
     const expirationDate = new Date(now.getTime() + 30 * 60 * 1000);
     const formattedExpiration = expirationDate
@@ -77,7 +77,7 @@ export class FirmaService {
       .replace(' ', 'T');
 
     return this.jwtService.sign({
-      run: input.run,
+      run: run,
       entity: input.entity,
       purpose: input.purpose,
       expiration: formattedExpiration,
@@ -92,9 +92,10 @@ export class FirmaService {
    */
   async signdocument(
     input: SignDocumentDto & { documentContent: string; documentChecksum: string },
+    run:string,
     imageBuffer: Express.Multer.File,
   ) {
-    const token = this.generateToken(input);
+    const token = this.generateToken(input,run);
     const altura = input.heightImage ? parseInt(input.heightImage.toString(), 10) : 0;
     const layout = await this.createAgileSignerConfig(imageBuffer, altura);
     const payload = {

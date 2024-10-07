@@ -1,9 +1,7 @@
 import { IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString } from "class-validator";
 
 export class SignDocumentDto {
-    @IsString()
-    @IsNotEmpty()
-    run: string;
+
 
     @IsString()
     @IsNotEmpty()

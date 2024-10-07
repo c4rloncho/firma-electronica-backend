@@ -36,7 +36,7 @@ export class AuthService {
       throw new BadRequestException('Contraseña incorrecta');
     }
 
-    const payload = { rut: funcionario.rut, name: funcionario.nombre };
+    const payload = { rut: funcionario.rut, name: funcionario.nombre,cargo:funcionario.cargo };
     const expiresIn = this.configService.get<string>('JWT_EXPIRATION');
 
     return {
@@ -44,6 +44,8 @@ export class AuthService {
       expiresIn: expiresIn,
     };
   }
+
+
 
   async registerEmployee(input: RegisterDto) {
     const { nombre, rut, correo, password } = input;
