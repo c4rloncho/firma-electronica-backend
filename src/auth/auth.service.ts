@@ -36,7 +36,7 @@ export class AuthService {
       throw new BadRequestException('Contraseña incorrecta');
     }
 
-    const payload = { rut: funcionario.rut, name: funcionario.nombre,cargo:funcionario.cargo };
+    const payload = { rut: funcionario.rut, name: funcionario.nombre,privilegio:funcionario.Privilegio };
     const expiresIn = this.configService.get<string>('JWT_EXPIRATION');
 
     return {
@@ -48,7 +48,7 @@ export class AuthService {
 
 
   async registerEmployee(input: RegisterDto) {
-    const { nombre, rut, correo, password } = input;
+    const { nombre, rut, correo, password,privilegio } = input;
     const existFuncionario = await this.funcionarioRepository.findOne({
       where: { rut },
     });
@@ -62,6 +62,7 @@ export class AuthService {
       correo,
       activo:1,
       password: hashedPassword,
+      Privilegio: privilegio
     });
     this.funcionarioRepository.save(newFuncionario);
     return {message:'Usuario registrado exitosamente'}
