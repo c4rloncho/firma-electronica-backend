@@ -33,6 +33,9 @@ import { ConfigService } from '@nestjs/config';
 import { createReadStream, existsSync } from 'fs';
 import { Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
+import { CargosGuard } from 'src/auth/cargos.guard';
+import { Cargos } from 'src/auth/cargos.decorator';
+import { Cargo } from 'src/auth/dto/cargo.enum';
 
 @Controller('document')
 export class DocumentoController {
@@ -115,20 +118,22 @@ export class DocumentoController {
     }
   }
 
-  // @Get('full-signed')
-  // async getFullySigned(
-  //   @Query('page') page: number = 1,
-  //   @Query('limit') limit: number = 10,
-  //   @Query('startDate') startDate?: string,
-  //   @Query('endDate') endDate?: string,
-  //   @Query('name') name?: string
-  // ) {
-  //   try {
-  //     return await this.documentoService.findFullySigned(page, limit, startDate, endDate, name);
-  //   } catch (error) {
-  //     throw error;
-  //   }
-  // }
+  @Get('full-signed')
+  @UseGuards(AuthGuard('jwt'),CargosGuard)
+  @Cargos(Cargo.ADMIN)
+  async getFullySigned(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('name') name?: string
+  ) {
+    try {
+      return await this.documentoService.findFullySigned(page, limit, startDate, endDate, name);
+    } catch (error) {
+      throw error;
+    }
+  }
 
   @Get('get-by-id/:id')
   @UseGuards(AuthGuard('jwt'))

@@ -47,23 +47,23 @@ export class AuthService {
 
 
 
-  // async registerEmployee(input: RegisterDto) {
-  //   const { nombre, rut, correo, password } = input;
-  //   const existFuncionario = await this.funcionarioRepository.findOne({
-  //     where: { rut },
-  //   });
-  //   if (existFuncionario) {
-  //     throw new BadRequestException('error RUT ya registrado');
-  //   }
-  //   const hashedPassword = createHash('md5').update(password).digest('hex');
-  //   const newFuncionario = this.funcionarioRepository.create({
-  //     rut,
-  //     nombre,
-  //     correo,
-  //     activo:1,
-  //     password: hashedPassword,
-  //   });
-  //   this.funcionarioRepository.save(newFuncionario);
-  //   return {message:'Usuario registrado exitosamente'}
-  // }
+  async registerEmployee(input: RegisterDto) {
+    const { nombre, rut, correo, password } = input;
+    const existFuncionario = await this.funcionarioRepository.findOne({
+      where: { rut },
+    });
+    if (existFuncionario) {
+      throw new BadRequestException('error RUT ya registrado');
+    }
+    const hashedPassword = createHash('md5').update(password).digest('hex');
+    const newFuncionario = this.funcionarioRepository.create({
+      rut,
+      nombre,
+      correo,
+      activo:1,
+      password: hashedPassword,
+    });
+    this.funcionarioRepository.save(newFuncionario);
+    return {message:'Usuario registrado exitosamente'}
+  }
 }
