@@ -17,13 +17,13 @@ export class AuthController {
       
     }
   }
-  @Post('/register')
-  async register(@Body()input:RegisterDto){
-    try {
-      return this.authService.registerEmployee(input);
-    } catch (error) {
+  // @Post('/register')
+  // async register(@Body()input:RegisterDto){
+  //   try {
+  //     return this.authService.registerEmployee(input);
+  //   } catch (error) {
       
-    }
-  }
+  //   }
+  // }
 
 }

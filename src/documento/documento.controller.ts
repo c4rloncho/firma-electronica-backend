@@ -5,15 +5,12 @@ import {
   DefaultValuePipe,
   Delete,
   Get,
-  HttpCode,
   HttpException,
   HttpStatus,
   InternalServerErrorException,
   Logger,
   NotFoundException,
   Param,
-  ParseArrayPipe,
-  ParseBoolPipe,
   ParseIntPipe,
   Post,
   Query,
@@ -89,6 +86,8 @@ export class DocumentoController {
     }
   }
 
+
+  //firmar un documento 
   @Post('sign')
   @UseGuards(AuthGuard('jwt'))
   @UseInterceptors(FileInterceptor('image'))
@@ -180,24 +179,33 @@ export class DocumentoController {
     }
   }
 
+
+  //obtener la informacion de un documento por su id
   @Get('get-info-document/:id')
-  async(@Param('id', ParseIntPipe) id: number) {
+  @UseGuards(AuthGuard('jwt'))
+  async(
+    @Param('id', ParseIntPipe) id: number) {
     try {
       return this.documentoService.getInfoDocumentId(id);
     } catch (error) {}
   }
-  @Get('get-pending/:rut')
+
+
+  //obtener todas las firmas pendientes de un usuario por el rut
+  @Get('get-pending')
+  @UseGuards(AuthGuard('jwt'))
   async getFirmasPendientePorFuncionario(
-    @Param('rut') rut: string,
+    @Req() req,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('name') name?: string,
   ) {
+    const user:User = req.user
     try {
       const result = await this.documentoService.getPendingSignatures(
-        rut,
+        user.rut,
         page,
         limit,
         startDate ? new Date(startDate) : undefined,

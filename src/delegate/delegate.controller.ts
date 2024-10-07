@@ -1,46 +1,81 @@
-import { Controller, Post, Body, Param, Delete, Patch, Get, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Param,
+  Delete,
+  Patch,
+  Get,
+  HttpCode,
+  HttpStatus,
+  UseGuards,
+  Req,
+} from '@nestjs/common';
 import { DelegateService } from './delegate.service';
 import { Delegate } from './entities/delegado.entity';
+import { AuthGuard } from '@nestjs/passport';
+import { User } from 'src/interfaces/firma.interfaces';
+import { CargosGuard } from 'src/auth/cargos.guard';
+import { Cargos } from 'src/auth/cargos.decorator';
+import { Cargo } from 'src/auth/dto/cargo.enum';
 
 @Controller('delegates')
 export class DelegateController {
   constructor(private readonly delegateService: DelegateService) {}
 
   @Post()
+  @UseGuards(AuthGuard('jwt'))
   @HttpCode(HttpStatus.CREATED)
   async appointDelegate(
-    @Body() body: { ownerRut: string; delegateRut: string }
+    @Req() req,
+    @Body() body: { delegateRut: string },
   ): Promise<Delegate> {
-    const { ownerRut, delegateRut } = body;
-    return this.delegateService.appointDelegate(ownerRut, delegateRut);
+    const user: User = req.user;
+    const { delegateRut } = body;
+    return this.delegateService.appointDelegate(user.rut, delegateRut);
   }
 
-  @Delete(':ownerRut')
+  @Delete()
+  @UseGuards(AuthGuard('jwt'))
   @HttpCode(HttpStatus.OK)
-  async softDeleteDelegate(@Param('ownerRut') ownerRut: string) {
-    return this.delegateService.softDeleteDelegate(ownerRut);
+  async softDeleteDelegate(@Req() req) {
+    const user: User = req.user;
+    return this.delegateService.softDeleteDelegate(user.rut);
   }
 
-  @Patch(':ownerRut/activate')
+  @Patch('activate')
+  @UseGuards(AuthGuard('jwt'))
   @HttpCode(HttpStatus.OK)
-  async activateDelegate(@Param('ownerRut') ownerRut: string): Promise<{message:string,delegate:Delegate}> {
-    return this.delegateService.activateDelegate(ownerRut);
+  async activateDelegate(
+    @Req() req,
+    @Param('ownerRut') ownerRut: string,
+  ): Promise<{ message: string; delegate: Delegate }> {
+    const user: User = req.user;
+    return this.delegateService.activateDelegate(user.rut);
   }
 
-  @Patch(':ownerRut/deactivate')
+  @Patch('deactivate')
+  @UseGuards(AuthGuard('jwt'))
   @HttpCode(HttpStatus.OK)
-  async deactivateDelegate(@Param('ownerRut') ownerRut: string): Promise<Delegate> {
-    return this.delegateService.deactivateDelegate(ownerRut);
+  async deactivateDelegate(@Req() req): Promise<Delegate> {
+    const user = req.user;
+    return this.delegateService.deactivateDelegate(user.rut);
   }
 
-  @Get()
+  @Get('get-all')
+  @UseGuards(AuthGuard('jwt'), CargosGuard)
+  @Cargos(Cargo.ADMIN)
   @HttpCode(HttpStatus.OK)
   async getDelegates(): Promise<Delegate[]> {
     return this.delegateService.getDelegates();
   }
-  @Get(':rut')
+  @Get('my-delegates')
+  @UseGuards(AuthGuard('jwt'))
   @HttpCode(HttpStatus.OK)
-  async getDelegatesRut(@Param('rut')rut:string): Promise<Delegate> {
-    return this.delegateService.getDelegatesRut(rut);
+  async getDelegatesRut(
+    @Req() req,
+  ): Promise<Delegate> {
+    const user = req.user
+    return this.delegateService.getDelegatesRut(user.rut);
   }
 }
