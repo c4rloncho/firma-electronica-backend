@@ -3,6 +3,7 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
@@ -32,6 +33,8 @@ import * as crypto from 'crypto';
 import { extname, join } from 'path';
 import { Funcionario } from 'src/funcionario/entities/funcionario.entity';
 import { Delegate } from 'src/delegate/entities/delegado.entity';
+import { User } from 'src/interfaces/firma.interfaces';
+import { Cargo } from 'src/auth/dto/cargo.enum';
 
 
 /**
@@ -382,34 +385,52 @@ export class DocumentoService {
    * @throws BadRequestException si el ID es inválido.
    * @throws NotFoundException si el documento no se encuentra.
    */
-  async getById(id: number, user:User) {
-    if (!id || isNaN(id)) {
-      throw new BadRequestException(
-        'ID inválido. Debe ser un número entero positivo.',
-      );
-    }
-
-    try {
-      const document = await this.documentRepository.findOne({ where: { id } });
-      if (!document) {
-        throw new NotFoundException(`Documento no encontrado con id ${id}`);
+    async getById(id: number, user: User) {
+      if (!id || isNaN(id)) {
+        throw new BadRequestException(
+          'ID inválido. Debe ser un número entero positivo.',
+        );
       }
-      const dateObject = new Date(document.date);
-      const documentYear = dateObject.getFullYear().toString();
-      const filePath = `./uploads/${documentYear}/${document.fileName}`;
-      return {
-        ...document,
-        filePath,
-      };
-    } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw error;
+   
+      try {
+        const document = await this.documentRepository.findOne({
+          where: { id },
+          relations: ['signatures'],
+        });
+  
+        if (!document) {
+          throw new NotFoundException(`Documento no encontrado con id ${id}`);
+        }
+  
+        if (user.privilegio !== Cargo.ADMIN) {
+          const isAuthorized = 
+            document.creatorRut === user.rut ||
+            document.signatures.some(s => s.ownerRut === user.rut || s.signerRut === user.rut);
+  
+          if (!isAuthorized) {
+            throw new UnauthorizedException('No tienes permiso para acceder a este documento');
+          }
+        }
+  
+        const dateObject = new Date(document.date);
+        const documentYear = dateObject.getFullYear().toString();
+        const filePath = `./uploads/${documentYear}/${document.fileName}`;
+  
+        return {
+          ...document,
+          filePath,
+        };
+      } catch (error) {
+        if (error instanceof NotFoundException || 
+            error instanceof UnauthorizedException ||
+            error instanceof BadRequestException) {
+          throw error;
+        }
+        throw new InternalServerErrorException(
+          `Error al buscar el documento con id ${id}: ${error.message}`,
+        );
       }
-      throw new InternalServerErrorException(
-        `Error al buscar el documento con id ${id}: ${error.message}`,
-      );
     }
-  }
 
 
     /**
@@ -537,6 +558,7 @@ export class DocumentoService {
     limit: number;
     totalPages: number;
   }> {
+    console.log(rut)
     const delegates = await this.delegateRepository.find({
       where: { delegateRut: rut, isActive: true },
     });

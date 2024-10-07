@@ -21,7 +21,7 @@ export class FuncionarioController {
   constructor(private readonly funcionarioService: FuncionarioService) {}
  
 
-
+  //get info de un usuario 
   @Get(':rut')
   async getFuncionarioByRut(@Param('rut') rut: string) {
     try {
@@ -33,5 +33,6 @@ export class FuncionarioController {
       );
     }
   }
+  
 
 }

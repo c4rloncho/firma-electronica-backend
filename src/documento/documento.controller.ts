@@ -36,6 +36,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { CargosGuard } from 'src/auth/cargos.guard';
 import { Cargos } from 'src/auth/cargos.decorator';
 import { Cargo } from 'src/auth/dto/cargo.enum';
+import { User } from 'src/interfaces/firma.interfaces';
 
 @Controller('document')
 export class DocumentoController {
@@ -118,6 +119,8 @@ export class DocumentoController {
     }
   }
 
+
+  //solo pueden ingresar usuarios con privilegios 'a' Administradores
   @Get('full-signed')
   @UseGuards(AuthGuard('jwt'),CargosGuard)
   @Cargos(Cargo.ADMIN)
@@ -135,14 +138,18 @@ export class DocumentoController {
     }
   }
 
+
+  //logica actualizada para que solo puedan acceder al documento los administradores , creador del documento o firmantes
   @Get('get-by-id/:id')
   @UseGuards(AuthGuard('jwt'))
   async getDocumentById(
+    @Req() req,
     @Param('id', ParseIntPipe) id: number,
     @Res() res: Response,
   ) {
+    const user:User = req.user
     try {
-      const document = await this.documentoService.getById(id);
+      const document = await this.documentoService.getById(id,user);
       const filePath = join(process.cwd(), document.filePath);
 
       // Verificar si el archivo existe
@@ -210,18 +217,22 @@ export class DocumentoController {
     }
   }
 
-  @Get('by-rut/:rut')
+
+  //buscar todos los documentos por  usuario
+  @Get('by-rut')
+  @UseGuards(AuthGuard('jwt'))
   async getAllDocumentsByRut(
-    @Param('rut') rut: string,
+    @Req() req,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('name') name?: string,
   ) {
+    const user = req.user
     try {
       const result = await this.documentoService.getAllDocumentsByRut(
-        rut,
+        user.rut,
         page,
         limit,
         startDate ? new Date(startDate) : undefined,
@@ -241,13 +252,16 @@ export class DocumentoController {
     }
   }
 
-  @Delete(':rut/:idDocument')
+  //realizar un soft delete en el documento en la base de datos 
+  @Delete(':idDocument')
+  @UseGuards(AuthGuard('jwt'))
   async deleteDocument(
-    @Param('rut') rut: string,
+    @Req() req,
     @Param('idDocument', ParseIntPipe) idDocument: number
   ) {
+    const user = req.user
     try {
-      return await this.documentoService.deleteDocument(rut, idDocument);
+      return await this.documentoService.deleteDocument(user.rut, idDocument);
     } catch (error) {
       console.error('Error al eliminar el documento:', error);
       
