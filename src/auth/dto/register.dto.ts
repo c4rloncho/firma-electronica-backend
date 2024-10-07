@@ -19,9 +19,4 @@ export class RegisterDto{
     @IsOptional()
     @MaxLength(90, { message: 'El correo no puede tener más de 90 caracteres' })
     correo?: string;
-
-
-    @IsString()
-    @IsOptional()
-    cargo?:string;
 }

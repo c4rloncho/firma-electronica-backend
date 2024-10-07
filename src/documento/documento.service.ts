@@ -207,6 +207,7 @@ export class DocumentoService {
         where: { id: parseInt(documentId) },
         relations: ['signatures'],
       });
+  
       if (!document) {
         throw new NotFoundException(
           `Documento con el id ${documentId} no encontrado`,

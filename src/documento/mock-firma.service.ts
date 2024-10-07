@@ -6,7 +6,6 @@ import * as crypto from 'crypto';
 export class MockFirmaService {
   async signdocument(
     input: SignDocumentDto & { documentContent: string; documentChecksum: string },
-    run:string,
     imageBuffer: Express.Multer.File
   ): Promise<{
     success: boolean;
@@ -37,7 +36,7 @@ export class MockFirmaService {
     const newChecksum = crypto.createHash('md5').update(input.documentContent).digest('hex');
 
     // Simular la firma del documento
-    const signedContent = Buffer.from(`${input.documentContent} - Firmado por ${run}`);
+    const signedContent = Buffer.from(`${input.documentContent} - Firmado por ${input.run}`);
 
     return {
       success: true,
@@ -53,8 +52,8 @@ export class MockFirmaService {
           }
         ],
         metadata: {
-          signerName: `Firmante ${run}`,
-          signerRut: run,
+          signerName: `Firmante ${input.run}`,
+          signerRut: input.run,
           signatureDate: new Date().toISOString(),
           signatureType: "ADVANCED",
           certificateSerialNumber: crypto.randomBytes(8).toString('hex').toUpperCase(),
