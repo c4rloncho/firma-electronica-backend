@@ -2,23 +2,29 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import * as express from 'express';
 import * as dotenv from 'dotenv';
+import { ValidationPipe } from '@nestjs/common';
+import * as cookieParser from 'cookie-parser';
+import { CorsOptions } from '@nestjs/common/interfaces/external/cors-options.interface';
 
 dotenv.config();
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  
-  // Configuración de CORS
-  app.enableCors({
-    origin: 'http://localhost:3000',
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+  // Configurar CORS
+  const corsOptions: CorsOptions = {
+    origin: process.env.CORS_ORIGIN,
     credentials: true,
-  });
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  };
+  app.enableCors(corsOptions);
 
+  app.use(cookieParser());
+  app.useGlobalPipes(new ValidationPipe());
   app.use(express.json()); // Para JSON
   app.use(express.urlencoded({ extended: true })); 
 
-  await app.listen(4000);
+  const port = process.env.PORT || 4000;
+  await app.listen(port);
 }
-
 bootstrap();

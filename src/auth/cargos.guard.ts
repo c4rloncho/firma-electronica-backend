@@ -17,6 +17,6 @@ export class CargosGuard implements CanActivate {
       return true;
     }
     const { user } = context.switchToHttp().getRequest();
-    return requiredRoles.some((cargo) => user.cargo === cargo);
+    return requiredRoles.some((privilegio) => user.privilegio === privilegio);
   }
 }

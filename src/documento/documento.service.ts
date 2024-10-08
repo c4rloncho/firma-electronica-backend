@@ -3,6 +3,7 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
@@ -32,7 +33,13 @@ import * as crypto from 'crypto';
 import { extname, join } from 'path';
 import { Funcionario } from 'src/funcionario/entities/funcionario.entity';
 import { Delegate } from 'src/delegate/entities/delegado.entity';
+<<<<<<< HEAD
 import { MockFirmaService } from './mock-firma.service';
+=======
+import { User } from 'src/interfaces/firma.interfaces';
+import { Cargo } from 'src/auth/dto/cargo.enum';
+import { RemoteStorageService } from 'src/documento/sftp-storage-service';
+>>>>>>> cb22af0f2e30bd27cf1ee1c5651d0f9ae6df9157
 
 
 /**
@@ -48,7 +55,11 @@ export class DocumentoService {
     @InjectDataSource('secondConnection')
     private dataSource: DataSource,
     private firmaService: FirmaService,
+<<<<<<< HEAD
     private mockService: MockFirmaService
+=======
+    private remoteStorage: RemoteStorageService,
+>>>>>>> cb22af0f2e30bd27cf1ee1c5651d0f9ae6df9157
   ) {}
 
   /**
@@ -191,6 +202,10 @@ export class DocumentoService {
 
     const filePath = join(uploadPath, fileName);
     await fsp.writeFile(filePath, file.buffer);
+
+    // Subir al servidor remoto
+    const remotePath = `/uploads/${currentYear}/${fileName}`;
+    await this.remoteStorage.uploadFile(filePath, remotePath);
   }
   /**
    * Firma un documento.
@@ -331,6 +346,10 @@ export class DocumentoService {
     const signedFilePath = join('./uploads', year);
     const filePath = join(signedFilePath, signedFileName);
     await fsp.writeFile(filePath, signedFile.content);
+    
+     // Subir al servidor remoto
+     const remotePath = `/uploads/${year}/${signedFileName}`;
+     await this.remoteStorage.uploadFile(filePath, remotePath);
   }
 
   private validateSignatureOrder(
@@ -384,34 +403,52 @@ export class DocumentoService {
    * @throws BadRequestException si el ID es inválido.
    * @throws NotFoundException si el documento no se encuentra.
    */
-  async getById(id: number) {
-    if (!id || isNaN(id)) {
-      throw new BadRequestException(
-        'ID inválido. Debe ser un número entero positivo.',
-      );
-    }
-
-    try {
-      const document = await this.documentRepository.findOne({ where: { id } });
-      if (!document) {
-        throw new NotFoundException(`Documento no encontrado con id ${id}`);
+    async getById(id: number, user: User) {
+      if (!id || isNaN(id)) {
+        throw new BadRequestException(
+          'ID inválido. Debe ser un número entero positivo.',
+        );
       }
-      const dateObject = new Date(document.date);
-      const documentYear = dateObject.getFullYear().toString();
-      const filePath = `./uploads/${documentYear}/${document.fileName}`;
-      return {
-        ...document,
-        filePath,
-      };
-    } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw error;
+   
+      try {
+        const document = await this.documentRepository.findOne({
+          where: { id },
+          relations: ['signatures'],
+        });
+  
+        if (!document) {
+          throw new NotFoundException(`Documento no encontrado con id ${id}`);
+        }
+  
+        if (user.privilegio !== Cargo.ADMIN) {
+          const isAuthorized = 
+            document.creatorRut === user.rut ||
+            document.signatures.some(s => s.ownerRut === user.rut || s.signerRut === user.rut);
+  
+          if (!isAuthorized) {
+            throw new UnauthorizedException('No tienes permiso para acceder a este documento');
+          }
+        }
+  
+        const dateObject = new Date(document.date);
+        const documentYear = dateObject.getFullYear().toString();
+        const filePath = `./uploads/${documentYear}/${document.fileName}`;
+  
+        return {
+          ...document,
+          filePath,
+        };
+      } catch (error) {
+        if (error instanceof NotFoundException || 
+            error instanceof UnauthorizedException ||
+            error instanceof BadRequestException) {
+          throw error;
+        }
+        throw new InternalServerErrorException(
+          `Error al buscar el documento con id ${id}: ${error.message}`,
+        );
       }
-      throw new InternalServerErrorException(
-        `Error al buscar el documento con id ${id}: ${error.message}`,
-      );
     }
-  }
 
 
     /**
@@ -539,6 +576,7 @@ export class DocumentoService {
     limit: number;
     totalPages: number;
   }> {
+    console.log(rut)
     const delegates = await this.delegateRepository.find({
       where: { delegateRut: rut, isActive: true },
     });

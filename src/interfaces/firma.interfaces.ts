@@ -19,3 +19,9 @@ export interface SignResponse {
     idSolicitud: number;
   }
   
+export interface User{
+  rut:string;
+  name:string;
+  privilegio:string;
+
+}
