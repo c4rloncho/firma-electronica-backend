@@ -35,6 +35,7 @@ import { Funcionario } from 'src/funcionario/entities/funcionario.entity';
 import { Delegate } from 'src/delegate/entities/delegado.entity';
 import { User } from 'src/interfaces/firma.interfaces';
 import { Cargo } from 'src/auth/dto/cargo.enum';
+import { RemoteStorageService } from 'src/documento/sftp-storage-service';
 
 
 /**
@@ -50,6 +51,7 @@ export class DocumentoService {
     @InjectDataSource('secondConnection')
     private dataSource: DataSource,
     private firmaService: FirmaService,
+    private remoteStorage: RemoteStorageService,
   ) {}
 
   /**
@@ -192,6 +194,10 @@ export class DocumentoService {
 
     const filePath = join(uploadPath, fileName);
     await fsp.writeFile(filePath, file.buffer);
+
+    // Subir al servidor remoto
+    const remotePath = `/uploads/${currentYear}/${fileName}`;
+    await this.remoteStorage.uploadFile(filePath, remotePath);
   }
   /**
    * Firma un documento.
@@ -332,6 +338,10 @@ export class DocumentoService {
     const signedFilePath = join('./uploads', year);
     const filePath = join(signedFilePath, signedFileName);
     await fsp.writeFile(filePath, signedFile.content);
+    
+     // Subir al servidor remoto
+     const remotePath = `/uploads/${year}/${signedFileName}`;
+     await this.remoteStorage.uploadFile(filePath, remotePath);
   }
 
   private validateSignatureOrder(

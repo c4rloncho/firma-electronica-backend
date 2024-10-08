@@ -8,6 +8,7 @@ import { extname, join } from 'path';
 import * as fs from 'fs';
 
 import { Attachment } from './entities/attachment .entity';
+import { RemoteStorageService } from 'src/documento/sftp-storage-service';
 
 @Injectable()
 export class AttachmentService {
@@ -16,36 +17,44 @@ export class AttachmentService {
     private attachmentRepository: Repository<Attachment>,
     @InjectRepository(Document,'secondConnection')
     private documentRepository: Repository<Document>,
+    private remoteStorage:RemoteStorageService,
   ) {}
 
-  static getStorageOptions() {
+  private static generateRandomName(): string {
+    return Array(32)
+      .fill(null)
+      .map(() => Math.round(Math.random() * 16).toString(16))
+      .join('');
+  }
+
+  private static getUploadPath(currentYear: string): string {
+    const uploadPath = join('./uploads', currentYear);
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+    return uploadPath;
+  }
+
+  private static getStorageOptions() {
     return {
       storage: diskStorage({
         destination: (req, file, cb) => {
           const currentYear = new Date().getFullYear().toString();
-          const uploadPath = join('./uploads', currentYear);
-          
-          if (!fs.existsSync(uploadPath)) {
-            fs.mkdirSync(uploadPath, { recursive: true });
-          }
-          
+          const uploadPath = AttachmentService.getUploadPath(currentYear);
           cb(null, uploadPath);
         },
         filename: (req, file, cb) => {
-          const randomName = Array(32)
-            .fill(null)
-            .map(() => Math.round(Math.random() * 16).toString(16))
-            .join('');
+          const randomName = AttachmentService.generateRandomName();
           return cb(null, `attachment_${randomName}${extname(file.originalname)}`);
         },
       }),
     };
   }
 
-  async addAttachment(file: Express.Multer.File, createAttachmentDto: CreateAttachmentDto,rut:string): Promise<Partial<Attachment>> {
-    const { documentId, name } = createAttachmentDto;
+  async addAttachment(file: Express.Multer.File, createAttachmentDto: CreateAttachmentDto, rut: string): Promise<Partial<Attachment>> {
+    const { documentId , name } = createAttachmentDto;
 
-    const document = await this.documentRepository.findOne({ where: { id: documentId,creatorRut:rut}, relations: ['attachments'] });
+    const document = await this.documentRepository.findOne({ where: { id: documentId, creatorRut: rut }, relations: ['attachments'] });
     if (!document) {
       throw new NotFoundException(`Document with ID ${documentId} not found`);
     }
@@ -57,36 +66,39 @@ export class AttachmentService {
       storage.getDestination(null, file, (err, destination) => {
         if (err) return reject(err);
 
-        storage.getFilename(null, file, (err, filename) => {
+        storage.getFilename(null, file, async (err, filename) => {
           if (err) return reject(err);
 
           const filePath = join(destination, filename);
+          try {
+            await fs.promises.writeFile(filePath, file.buffer);
 
-          fs.writeFile(filePath, file.buffer, async (err) => {
-            if (err) return reject(new BadRequestException('Failed to save the file'));
+            // Subir al servidor remoto
+            const currentYear = new Date().getFullYear().toString();
+            const remotePath = `/uploads/${currentYear}/${filename}`;
+            await this.remoteStorage.uploadFile(filePath, remotePath);
 
             const attachment = this.attachmentRepository.create({
               name: name,
               fileName: filename,
               document: document,
-              uploadDate: new Date()
+              uploadDate: new Date(),
             });
 
-            try {
-              const savedAttachment = await this.attachmentRepository.save(attachment);
-              document.attachments.push(savedAttachment);
-              await this.documentRepository.save(document);
-              resolve({
-                id: savedAttachment.id,
-                name: savedAttachment.name,
-                fileName: savedAttachment.fileName,
-                uploadDate: savedAttachment.uploadDate,
-              });
-            } catch (error) {
-              console.error('Error saving attachment:', error);
-              reject(new BadRequestException('Failed to save attachment info to database'));
-            }
-          });
+            const savedAttachment = await this.attachmentRepository.save(attachment);
+            document.attachments.push(savedAttachment);
+            await this.documentRepository.save(document);
+
+            resolve({
+              id: savedAttachment.id,
+              name: savedAttachment.name,
+              fileName: savedAttachment.fileName,
+              uploadDate: savedAttachment.uploadDate,
+            });
+          } catch (error) {
+            console.error('Error saving attachment:', error);
+            reject(new BadRequestException('Failed to save the file or attachment info'));
+          }
         });
       });
     });
