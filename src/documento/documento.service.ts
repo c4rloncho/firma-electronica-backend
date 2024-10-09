@@ -1,3 +1,5 @@
+import { Readable } from 'stream';
+import { Response } from 'express';
 import {
   BadRequestException,
   Injectable,
@@ -184,20 +186,18 @@ export class DocumentoService {
   private async saveFile(
     file: Express.Multer.File,
     fileName: string,
-  ): Promise<void> {
+  ): Promise<string> {
     const currentYear = new Date().getFullYear().toString();
-    const uploadPath = join('./uploads', currentYear);
-
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-    }
-
-    const filePath = join(uploadPath, fileName);
-    await fsp.writeFile(filePath, file.buffer);
-
-    // Subir al servidor remoto
     const remotePath = `/uploads/${currentYear}/${fileName}`;
-    await this.remoteStorage.uploadFile(filePath, remotePath);
+
+    try {
+      await this.remoteStorage.uploadFile(file.buffer, remotePath);
+      console.log(`Archivo subido exitosamente a: ${remotePath}`);
+      return remotePath;
+    } catch (error) {
+      console.error(`Error al subir el archivo: ${error.message}`);
+      throw error;
+    }
   }
   /**
    * Firma un documento.
@@ -211,7 +211,7 @@ export class DocumentoService {
     return this.dataSource.transaction(async (transactionalEntityManager) => {
       const { documentId } = input;
       const document = await transactionalEntityManager.findOne(Document, {
-        where: { id: parseInt(documentId) },
+        where: { id: documentId },
         relations: ['signatures'],
       });
   
@@ -282,10 +282,11 @@ export class DocumentoService {
           document.fileName,
           documentYear,
         );
-  
+        //limpieza y transformacion de run que pide la api
+        const extendedInput = this.addRunToDto(run,input);
         const firmaResult = await this.firmaService.signdocument(
           {
-            ...input,
+            ...extendedInput,
             documentContent: content,
             documentChecksum: checksum,
           },
@@ -327,21 +328,34 @@ export class DocumentoService {
     });
   }
 
+  private addRunToDto(rut: string, dto: SignDocumentDto): SignDocumentDto & { run: string } {
+    // Limpia el RUT
+    let rutLimpio = rut.replace(/[.-]/g, '');
+    rutLimpio = rutLimpio.slice(0, -1);
   
+    // Crea y retorna un nuevo objeto con el DTO original y el RUN limpio
+    return {
+      ...dto,
+      run: rutLimpio
+    };
+  }
+
   private async saveSignedFile(
     signedFile: { content: Buffer; checksum: string },
     document: Document,
-  ): Promise<void> {
-    const documentYear = new Date(document.date);
-    const year = documentYear.getFullYear().toString();
+  ): Promise<string> {
+    const documentYear = new Date(document.date).getFullYear().toString();
     const signedFileName = document.fileName;
-    const signedFilePath = join('./uploads', year);
-    const filePath = join(signedFilePath, signedFileName);
-    await fsp.writeFile(filePath, signedFile.content);
-    
-     // Subir al servidor remoto
-     const remotePath = `/uploads/${year}/${signedFileName}`;
-     await this.remoteStorage.uploadFile(filePath, remotePath);
+    const remotePath = `/uploads/${documentYear}/${signedFileName}`;
+
+    try {
+      await this.remoteStorage.uploadFile(signedFile.content, remotePath);
+      console.log(`Archivo firmado subido exitosamente a: ${remotePath}`);
+      return remotePath;
+    } catch (error) {
+      console.error(`Error al subir el archivo firmado: ${error.message}`);
+      throw error;
+    }
   }
 
   private validateSignatureOrder(
@@ -395,13 +409,13 @@ export class DocumentoService {
    * @throws BadRequestException si el ID es inválido.
    * @throws NotFoundException si el documento no se encuentra.
    */
-    async getById(id: number, user: User) {
+    async getById(id: number, user: User, res: Response) {
       if (!id || isNaN(id)) {
         throw new BadRequestException(
           'ID inválido. Debe ser un número entero positivo.',
         );
       }
-   
+     
       try {
         const document = await this.documentRepository.findOne({
           where: { id },
@@ -424,12 +438,18 @@ export class DocumentoService {
   
         const dateObject = new Date(document.date);
         const documentYear = dateObject.getFullYear().toString();
-        const filePath = `./uploads/${documentYear}/${document.fileName}`;
+        const remoteFilePath = `/${documentYear}/${document.fileName}`;
   
-        return {
-          ...document,
-          filePath,
-        };
+        // Obtener el stream del archivo desde el servidor SFTP
+        const fileStream = await this.remoteStorage.getFileStream(remoteFilePath);
+  
+        // Configurar los headers de la respuesta
+        res.setHeader('Content-Type', 'application/octet-stream');
+        res.setHeader('Content-Disposition', `attachment; filename="${document.fileName}"`);
+  
+        // Transmitir el archivo al cliente
+        fileStream.pipe(res);
+  
       } catch (error) {
         if (error instanceof NotFoundException || 
             error instanceof UnauthorizedException ||
@@ -437,7 +457,7 @@ export class DocumentoService {
           throw error;
         }
         throw new InternalServerErrorException(
-          `Error al buscar el documento con id ${id}: ${error.message}`,
+          `Error al buscar o transmitir el documento con id ${id}: ${error.message}`,
         );
       }
     }

@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { Document } from '../documento/entities/document.entity';
 import { CreateAttachmentDto } from './dto/create-attachment.dto';
 import { diskStorage } from 'multer';
@@ -18,6 +18,7 @@ export class AttachmentService {
     @InjectRepository(Document,'secondConnection')
     private documentRepository: Repository<Document>,
     private remoteStorage:RemoteStorageService,
+    private dataSource: DataSource,
   ) {}
 
   private static generateRandomName(): string {
@@ -27,83 +28,79 @@ export class AttachmentService {
       .join('');
   }
 
-  private static getUploadPath(currentYear: string): string {
-    const uploadPath = join('./uploads', currentYear);
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-    }
-    return uploadPath;
-  }
+  async addAttachment(
+    file: Express.Multer.File,
+    createAttachmentDto: CreateAttachmentDto,
+    rut: string
+  ): Promise<Partial<Attachment>> {
+    const { documentId, name } = createAttachmentDto;
 
-  private static getStorageOptions() {
-    return {
-      storage: diskStorage({
-        destination: (req, file, cb) => {
-          const currentYear = new Date().getFullYear().toString();
-          const uploadPath = AttachmentService.getUploadPath(currentYear);
-          cb(null, uploadPath);
-        },
-        filename: (req, file, cb) => {
-          const randomName = AttachmentService.generateRandomName();
-          return cb(null, `attachment_${randomName}${extname(file.originalname)}`);
-        },
-      }),
-    };
-  }
+    const document = await this.documentRepository.findOne({
+      where: { id: documentId, creatorRut: rut },
+      relations: ['attachments']
+    });
 
-  async addAttachment(file: Express.Multer.File, createAttachmentDto: CreateAttachmentDto, rut: string): Promise<Partial<Attachment>> {
-    const { documentId , name } = createAttachmentDto;
-
-    const document = await this.documentRepository.findOne({ where: { id: documentId, creatorRut: rut }, relations: ['attachments'] });
     if (!document) {
       throw new NotFoundException(`Document with ID ${documentId} not found`);
     }
 
-    const storageOptions = AttachmentService.getStorageOptions();
-    const storage = storageOptions.storage as any;
+    const currentYear = new Date().getFullYear().toString();
+    const randomName = AttachmentService.generateRandomName();
+    const filename = `attachment_${randomName}${extname(file.originalname)}`;
+    const remotePath = `/uploads/${currentYear}/${filename}`;
 
-    return new Promise((resolve, reject) => {
-      storage.getDestination(null, file, (err, destination) => {
-        if (err) return reject(err);
+    // Iniciar una transacción
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-        storage.getFilename(null, file, async (err, filename) => {
-          if (err) return reject(err);
+    try {
+      // Subir al servidor remoto
+      await this.remoteStorage.uploadFile(file.buffer, remotePath);
 
-          const filePath = join(destination, filename);
-          try {
-            await fs.promises.writeFile(filePath, file.buffer);
-
-            // Subir al servidor remoto
-            const currentYear = new Date().getFullYear().toString();
-            const remotePath = `/uploads/${currentYear}/${filename}`;
-            await this.remoteStorage.uploadFile(filePath, remotePath);
-
-            const attachment = this.attachmentRepository.create({
-              name: name,
-              fileName: filename,
-              document: document,
-              uploadDate: new Date(),
-            });
-
-            const savedAttachment = await this.attachmentRepository.save(attachment);
-            document.attachments.push(savedAttachment);
-            await this.documentRepository.save(document);
-
-            resolve({
-              id: savedAttachment.id,
-              name: savedAttachment.name,
-              fileName: savedAttachment.fileName,
-              uploadDate: savedAttachment.uploadDate,
-            });
-          } catch (error) {
-            console.error('Error saving attachment:', error);
-            reject(new BadRequestException('Failed to save the file or attachment info'));
-          }
-        });
+      const attachment = this.attachmentRepository.create({
+        name: name,
+        fileName: filename,
+        document: document,
+        remoteFilePath: remotePath
       });
-    });
-  }
 
+      const savedAttachment = await queryRunner.manager.save(attachment);
+      
+      if (!document.attachments) {
+        document.attachments = [];
+      }
+      document.attachments.push(savedAttachment);
+      await queryRunner.manager.save(document);
+
+      // Si todo va bien, confirmar la transacción
+      await queryRunner.commitTransaction();
+
+      return {
+        id: savedAttachment.id,
+        name: savedAttachment.name,
+        fileName: savedAttachment.fileName,
+        uploadDate: savedAttachment.uploadDate,
+        remoteFilePath: savedAttachment.remoteFilePath
+      };
+    } catch (error) {
+      // Si algo sale mal, revertir la transacción
+      await queryRunner.rollbackTransaction();
+
+      // Intentar eliminar el archivo del servidor remoto si se subió
+      try {
+        await this.remoteStorage.deleteFile(remotePath);
+      } catch (deleteError) {
+        console.error('Error deleting remote file after database failure:', deleteError);
+      }
+
+      console.error('Error saving attachment:', error);
+      throw new InternalServerErrorException('Failed to save the file or attachment info');
+    } finally {
+      // Liberar el queryRunner
+      await queryRunner.release();
+    }
+  }
   async getAttachments(id: number): Promise<Attachment[]> {
     const attachments = await this.attachmentRepository.find({ where: { document: { id } } });
     if (!attachments || attachments.length === 0) {

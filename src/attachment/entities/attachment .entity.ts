@@ -18,5 +18,6 @@ export class Attachment {
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   uploadDate: Date;
 
-
+  @Column({ nullable: true })
+  remoteFilePath: string;
 }

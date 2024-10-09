@@ -146,30 +146,14 @@ export class DocumentoController {
     @Param('id', ParseIntPipe) id: number,
     @Res() res: Response,
   ) {
-    const user:User = req.user
+    const user: User = req.user;
     try {
-      const document = await this.documentoService.getById(id,user);
-      const filePath = join(process.cwd(), document.filePath);
-
-      // Verificar si el archivo existe
-      if (!existsSync(filePath)) {
-        throw new NotFoundException(
-          `El archivo ${document.fileName} no se encuentra en el servidor.`,
-        );
-      }
-
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader(
-        'Content-Disposition',
-        `inline; filename="${document.fileName}"`,
-      );
-      createReadStream(filePath).pipe(res);
+      // Ahora pasamos la respuesta (res) al servicio
+      await this.documentoService.getById(id, user, res);
     } catch (error) {
-      if (error instanceof BadRequestException) {
-        throw error;
-      } else if (error instanceof NotFoundException) {
-        throw error;
-      } else if (error instanceof InternalServerErrorException) {
+      if (error instanceof BadRequestException ||
+          error instanceof NotFoundException ||
+          error instanceof InternalServerErrorException) {
         throw error;
       } else {
         throw new InternalServerErrorException(
