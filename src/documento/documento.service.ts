@@ -283,11 +283,12 @@ export class DocumentoService {
           documentYear,
         );
         //limpieza y transformacion de run que pide la api
-        const extendedInput = this.addRunToDto(run,input);
+        const cleanRut = this.cleanRut(run);
         const firmaResult = await this.firmaService.signdocument(
           {
-            ...extendedInput,
+            ...input,
             documentContent: content,
+            run:cleanRut,
             documentChecksum: checksum,
           },
           run,
@@ -328,16 +329,13 @@ export class DocumentoService {
     });
   }
 
-  private addRunToDto(rut: string, dto: SignDocumentDto): SignDocumentDto & { run: string } {
+  private cleanRut(rut: string) {
     // Limpia el RUT
-    let rutLimpio = rut.replace(/[.-]/g, '');
-    rutLimpio = rutLimpio.slice(0, -1);
+    let cleanRut = rut.replace(/[.-]/g, '');
+    cleanRut = cleanRut.slice(0, -1);
   
     // Crea y retorna un nuevo objeto con el DTO original y el RUN limpio
-    return {
-      ...dto,
-      run: rutLimpio
-    };
+    return cleanRut
   }
 
   private async saveSignedFile(
