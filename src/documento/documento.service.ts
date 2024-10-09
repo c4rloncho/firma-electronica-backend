@@ -436,13 +436,13 @@ export class DocumentoService {
   
         const dateObject = new Date(document.date);
         const documentYear = dateObject.getFullYear().toString();
-        const remoteFilePath = `/${documentYear}/${document.fileName}`;
+        const remoteFilePath = `/uploads/${documentYear}/${document.fileName}`;
   
         // Obtener el stream del archivo desde el servidor SFTP
         const fileStream = await this.remoteStorage.getFileStream(remoteFilePath);
   
         // Configurar los headers de la respuesta
-        res.setHeader('Content-Type', 'application/octet-stream');
+        res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="${document.fileName}"`);
   
         // Transmitir el archivo al cliente
