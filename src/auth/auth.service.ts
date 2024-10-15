@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Funcionario } from 'src/funcionario/entities/funcionario.entity';
@@ -33,7 +34,7 @@ export class AuthService {
 
     const hashedPassword = MD5(password).toString();
     if (hashedPassword !== funcionario.password) {
-      throw new BadRequestException('Contraseña incorrecta');
+      throw new UnauthorizedException('Contraseña incorrecta');
     }
 
     const payload = { rut: funcionario.rut, name: funcionario.nombre,privilegio:funcionario.Privilegio };

@@ -139,7 +139,7 @@ export class RemoteStorageService {
     });
   }
 
-  private async disconnect(): Promise<void> {
+   async disconnect(): Promise<void> {
     if (this.sftp && this.sftp.sftp) {
       await this.sftp.end();
     }

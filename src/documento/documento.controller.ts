@@ -78,10 +78,7 @@ export class DocumentoController {
           HttpStatus.INTERNAL_SERVER_ERROR,
         );
       } else {
-        throw new HttpException(
-          'Error al crear el documento',
-          HttpStatus.INTERNAL_SERVER_ERROR,
-        );
+        throw error
       }
     }
   }

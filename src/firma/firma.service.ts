@@ -91,7 +91,7 @@ export class FirmaService {
    * @throws HttpException si ocurre un error durante el proceso de firma.
    */
   async signdocument(
-    input: SignDocumentDto & { documentContent: string; run:string; documentChecksum: string },
+    input: SignDocumentDto & { documentContent: string; documentChecksum: string },
     run:string,
     imageBuffer: Express.Multer.File,
   ) {
@@ -114,6 +114,7 @@ export class FirmaService {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
+    console.log(token)
     if (input.isAttended && input.otp) {
       headers['OTP'] = input.otp;
     }

@@ -1,12 +1,15 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
   HttpException,
   HttpStatus,
+  NotFoundException,
   Param,
   Post,
   Res,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
@@ -40,12 +43,23 @@ export class AuthController {
       });
 
       return { message: 'Login successful', expiresIn };
-    } catch (error) {
-      if (error instanceof HttpException) {
-        throw error;
+    }  catch (error) {
+  
+      if (error instanceof UnauthorizedException) {
+        throw new HttpException('Invalid credentials', HttpStatus.UNAUTHORIZED);
       }
+  
+      if (error instanceof BadRequestException) {
+        throw new HttpException('Invalid input data', HttpStatus.BAD_REQUEST);
+      }
+  
+      if (error instanceof NotFoundException) {
+        throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+      }
+  
+      // For any other error types
       throw new HttpException(
-        'An error occurred during login',
+        'An unexpected error occurred during login. Please try again later.',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }

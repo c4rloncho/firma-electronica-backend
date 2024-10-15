@@ -25,3 +25,12 @@ export interface User{
   privilegio:string;
 
 }
+export interface PendingSignature {
+  id: number;
+  name: string;
+  fileName: string;
+  signatureType: 'Titular' | 'Delegado';
+  ownerRut: string;
+  fecha: Date | null;
+  isMyTurn: boolean;
+}
