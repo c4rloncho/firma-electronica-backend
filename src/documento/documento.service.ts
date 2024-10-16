@@ -298,7 +298,7 @@ export class DocumentoService {
         );
         //limpieza y transformacion de run que pide la api
         const cleanRut = this.cleanRut(run);
-        console.log(cleanRut);
+        (cleanRut);
         const firmaResult = await this.firmaService.signdocument(
           {
             ...input,
@@ -436,51 +436,52 @@ export class DocumentoService {
    * @throws BadRequestException si el ID es inválido.
    * @throws NotFoundException si el documento no se encuentra.
    */
-  async getById(id: number, user: User, res: Response) {
+  async getById(id: number, user: User, res: Response, action: 'view' | 'download' = 'view') {
     if (!id || isNaN(id)) {
       throw new BadRequestException(
         'ID inválido. Debe ser un número entero positivo.',
       );
     }
-
+  
     try {
       const document = await this.documentRepository.findOne({
         where: { id },
         relations: ['signatures'],
       });
-
+  
       if (!document) {
         throw new NotFoundException(`Documento no encontrado con id ${id}`);
       }
-
+  
       if (user.privilegio !== Cargo.ADMIN) {
         const isAuthorized =
           document.creatorRut === user.rut ||
           document.signatures.some(
             (s) => s.ownerRut === user.rut || s.signerRut === user.rut,
           );
-
+  
         if (!isAuthorized) {
           throw new UnauthorizedException(
             'No tienes permiso para acceder a este documento',
           );
         }
       }
-
+  
       const dateObject = new Date(document.date);
       const documentYear = dateObject.getFullYear().toString();
       const remoteFilePath = `/uploads/${documentYear}/${document.fileName}`;
-
+  
       // Obtener el stream del archivo desde el servidor SFTP
       const fileStream = await this.remoteStorage.getFileStream(remoteFilePath);
-
-      // Configurar los headers de la respuesta
+  
+      // Configurar los headers de la respuesta según la acción
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader(
-        'Content-Disposition',
-        `attachment; filename="${document.fileName}"`,
-      );
-
+      if (action === 'download') {
+        res.setHeader('Content-Disposition', `attachment; filename="${document.fileName}"`);
+      } else {
+        res.setHeader('Content-Disposition', `inline; filename="${document.fileName}"`);
+      }
+  
       // Transmitir el archivo al cliente
       fileStream.pipe(res);
     } catch (error) {
@@ -516,10 +517,11 @@ export class DocumentoService {
     documentName?: string,
   ): Promise<{
     data: {
+      idDocument:number,
       id: number;
       name: string;
       fileName: string;
-      signatureType: 'Titular' | 'Delegado';
+      signatureType: 'Titular' | 'Subrogante';
       ownerRut: string;
       fecha: Date | null;
       signatureStatus: SignatureStatus;
@@ -537,10 +539,22 @@ export class DocumentoService {
     ownerRuts.push(rut);
 
     //busca todos los documentos del funcinoario y a todos a los que delega
-    const query = this.documentRepository.createQueryBuilder('document')
-      .innerJoinAndSelect('document.signatures', 'signature')
-      .where('signature.ownerRut = ANY(:ownerRuts)', { ownerRuts })
-      .orderBy('document.date', 'DESC');
+    const query = await this.documentRepository.createQueryBuilder('document')
+    .leftJoinAndSelect('document.signatures', 'signature')
+    .where(qb => {
+      const subQuery = qb.subQuery()
+        .select('DISTINCT(subDoc.id)')
+        .from(Document, 'subDoc')
+        .leftJoin('subDoc.signatures', 'subSig')
+        .where('subSig.ownerRut IN (:...ownerRuts)', { ownerRuts })
+        .getQuery();
+      return 'document.id IN ' + subQuery;
+    })
+    .orderBy('document.date', 'DESC');
+
+    
+
+
   
   if (startDate && endDate) {
     query.andWhere('document.date BETWEEN :startDate AND :endDate', { startDate, endDate });
@@ -553,18 +567,19 @@ export class DocumentoService {
       query.andWhere('document.name ILIKE :nombre', { nombre: `%${documentName}%` });
     }
 
-    const total = await query.getCount();
     const documents = await query
       .skip((page - 1) * limit)
       .take(limit)
       .getMany();
 
     const dataFormatted = documents.flatMap(doc => 
-      doc.signatures.map(sig => ({
-        id: doc.id,
+      doc.signatures.filter(sig => !sig.isSigned && (ownerRuts.includes(sig.ownerRut)))
+      .map(sig => ({
+        idDocument:doc.id,
+        id: sig.id,
         name: doc.name,
         fileName: doc.fileName,
-        signatureType: sig.ownerRut === rut ? 'Titular' as const : 'Delegado' as const,
+        signatureType: sig.ownerRut === rut ? 'Titular' as const : 'Subrogante' as const,
         ownerRut: sig.ownerRut,
         fecha: doc.date,
         signatureStatus: this.evaluateSignatureStatus(doc, rut, sig, delegates)
@@ -615,7 +630,7 @@ export class DocumentoService {
     if (isDelegateAndOriginalSigner) {
       return SignatureStatus.DelegateConflict;
     }
-
+    (document.id,document.signatures)
     if (this.isMyTurnToSign(document.signatures, currentSignature)) {
       return SignatureStatus.CanSign;
     }
@@ -666,7 +681,7 @@ export class DocumentoService {
     limit: number;
     totalPages: number;
   }> {
-    console.log(rut);
+    (rut);
     const delegates = await this.delegateRepository.find({
       where: { delegateRut: rut, isActive: true },
     });

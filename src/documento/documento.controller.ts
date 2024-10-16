@@ -140,13 +140,15 @@ export class DocumentoController {
   @UseGuards(AuthGuard('jwt'))
   async getDocumentById(
     @Req() req,
+    @Query('action') action: 'view' | 'download',
     @Param('id', ParseIntPipe) id: number,
     @Res() res: Response,
   ) {
     const user: User = req.user;
     try {
       // Ahora pasamos la respuesta (res) al servicio
-      await this.documentoService.getById(id, user, res);
+      await this.documentoService.
+      getById(id, user, res,action);
     } catch (error) {
       if (error instanceof BadRequestException ||
           error instanceof NotFoundException ||
