@@ -1,10 +1,8 @@
 import { Column, Entity, Index, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import { Document } from './document.entity';
+import { SignerType } from "src/enums/signer-type.enum";
 
-export enum SignerType {
-  VISADOR = "visador",
-  FIRMADOR = "firmador"
-}
+
 
 @Entity({ database: 'secondConnection' })
 export class DocumentSignature {

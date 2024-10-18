@@ -26,7 +26,6 @@ import {
 import { Document } from './entities/document.entity';
 import {
   DocumentSignature,
-  SignerType,
 } from './entities/document-signature.entity';
 import { SignerDto } from './dto/signer.dto';
 import { SignDocumentDto } from './dto/sign-document.dto';
@@ -41,6 +40,7 @@ import { User } from 'src/interfaces/firma.interfaces';
 import { Cargo } from 'src/auth/dto/cargo.enum';
 import { RemoteStorageService } from 'src/documento/sftp-storage-service';
 import { SignatureStatus } from './dto/signature-status.enum';
+import { SignerType } from 'src/enums/signer-type.enum';
 
 /**
  * Servicio para manejar operaciones relacionadas con documentos y firmas.
@@ -196,7 +196,6 @@ export class DocumentoService {
 
     try {
       await this.remoteStorage.uploadFile(file.buffer, remotePath);
-      console.log(`Archivo subido exitosamente a: ${remotePath}`);
       return remotePath;
     } catch (error) {
       console.error(`Error al subir el archivo: ${error.message}`);
@@ -216,128 +215,134 @@ export class DocumentoService {
     input: SignDocumentDto,
     imageBuffer: Express.Multer.File,
   ) {
-    return this.dataSource.transaction(async (transactionalEntityManager) => {
+    try {
+      return this.dataSource.transaction(async (transactionalEntityManager) => {
       
-      const { documentId } = input;
-      const document = await transactionalEntityManager.findOne(Document, {
-        where: { id: documentId },
-        relations: ['signatures'],
-      });
-      if (!document) {
-        throw new NotFoundException(
-          `Documento con el id ${documentId} no encontrado`,
-        );
-      }
-
-      // Verificar si la persona ya ha firmado el documento
-      const alreadySigned = document.signatures.some(
-        (s) => s.signerRut === run && s.isSigned,
-      );
-      if (alreadySigned) {
-        throw new BadRequestException('Ya ha firmado este documento');
-      }
-
-      // Buscar la firma pendiente como firmante original
-      let pendingSignature = document.signatures.find(
-        (s) => !s.isSigned && s.ownerRut === run,
-      );
-      // Buscar delegaciones activas
-      const activeDelegations = await transactionalEntityManager.find(
-        Delegate,
-        {
-          where: { delegateRut: run, isActive: true },
-        },
-      );
-      // Verificar si es un firmante original y también un delegado activo
-      if (pendingSignature && activeDelegations.length > 0) {
-        const isDelegateForAnotherSigner = activeDelegations.some(
-          (delegation) =>
-            document.signatures.some(
-              (s) => s.ownerRut === delegation.ownerRut && s.ownerRut !== run,
-            ),
-        );
-
-        if (isDelegateForAnotherSigner) {
-          throw new BadRequestException(
-            'Usted es firmante original y delegado de otro firmante en este documento. Por favor, contacte al administrador.',
+        const { documentId } = input;
+        const document = await transactionalEntityManager.findOne(Document, {
+          where: { id: documentId },
+          relations: ['signatures'],
+        });
+        if (!document) {
+          throw new NotFoundException(
+            `Documento con el id ${documentId} no encontrado`,
           );
         }
-      }
-
-      // Si no es firmante original, buscar como delegado
-      if (!pendingSignature) {
-        pendingSignature = document.signatures.find(
-          (s) =>
-            !s.isSigned &&
-            activeDelegations.some((d) => d.ownerRut === s.ownerRut),
+  
+        // Verificar si la persona ya ha firmado el documento
+        const alreadySigned = document.signatures.some(
+          (s) => s.signerRut === run && s.isSigned,
         );
-
-        if (!pendingSignature) {
-          throw new BadRequestException(
-            'No corresponde firmar o el delegado no está activo para ningún propietario que deba firmar',
-          );
+        if (alreadySigned) {
+          throw new BadRequestException('Ya ha firmado este documento');
         }
-      }
-
-      // Actualizar el signerRut con quien realmente está firmando
-      pendingSignature.signerRut = run;
-
-      try {
-        this.validateSignatureOrder(document.signatures, pendingSignature);
-      } catch (error) {
-        throw new BadRequestException(error.message);
-      }
-
-      try {
-        const dateObject = new Date(document.date);
-        const documentYear = dateObject.getFullYear().toString();
-        const { content, checksum } = await this.prepareFile(
-          document.fileName,
-          documentYear,
+  
+        // Buscar la firma pendiente como firmante original
+        let pendingSignature = document.signatures.find(
+          (s) => !s.isSigned && s.ownerRut === run,
         );
-        //limpieza y transformacion de run que pide la api
-        const cleanRut = this.cleanRut(run);
-        (cleanRut);
-        const firmaResult = await this.firmaService.signdocument(
+        // Buscar delegaciones activas
+        const activeDelegations = await transactionalEntityManager.find(
+          Delegate,
           {
-            ...input,
-            documentContent: content,
-            documentChecksum: checksum,
+            where: { delegateRut: run, isActive: true },
           },
-          cleanRut,
-          imageBuffer,
         );
-        if (firmaResult.success) {
-          await this.saveSignedFile(
-            firmaResult.signatureInfo.signedFiles[0],
-            document,
+        // Verificar si es un firmante original y también un delegado activo
+        if (pendingSignature && activeDelegations.length > 0) {
+          const isDelegateForAnotherSigner = activeDelegations.some(
+            (delegation) =>
+              document.signatures.some(
+                (s) => s.ownerRut === delegation.ownerRut && s.ownerRut !== run,
+              ),
           );
-          pendingSignature.isSigned = true;
-          pendingSignature.signedAt = new Date();
-          await transactionalEntityManager.save(pendingSignature);
-
-          const allSigned = document.signatures.every((s) => s.isSigned);
-          if (allSigned) {
-            document.isFullySigned = true;
-            await transactionalEntityManager.save(document);
+  
+          if (isDelegateForAnotherSigner) {
+            throw new BadRequestException(
+              'Usted es firmante original y delegado de otro firmante en este documento. Por favor, contacte al administrador.',
+            );
           }
-
-          return {
-            message: 'Documento firmado exitosamente',
-            signature: pendingSignature,
-            firmaInfo: firmaResult.signatureInfo,
-          };
-        } else {
+        }
+  
+        // Si no es firmante original, buscar como delegado
+        if (!pendingSignature) {
+          pendingSignature = document.signatures.find(
+            (s) =>
+              !s.isSigned &&
+              activeDelegations.some((d) => d.ownerRut === s.ownerRut),
+          );
+  
+          if (!pendingSignature) {
+            throw new BadRequestException(
+              'No corresponde firmar o el delegado no está activo para ningún propietario que deba firmar',
+            );
+          }
+        }
+  
+        // Actualizar el signerRut con quien realmente está firmando
+        pendingSignature.signerRut = run;
+  
+        try {
+          this.validateSignatureOrder(document.signatures, pendingSignature);
+        } catch (error) {
+          throw new BadRequestException(error.message);
+        }
+  
+        try {
+          const dateObject = new Date(document.date);
+          const documentYear = dateObject.getFullYear().toString();
+          const { content, checksum } = await this.prepareFile(
+            document.fileName,
+            documentYear,
+          );
+          //limpieza y transformacion de run que pide la api
+          const cleanRut = this.cleanRut(run);
+          (cleanRut);
+          const firmaResult = await this.firmaService.signdocument(
+            {
+              ...input,
+              documentContent: content,
+              documentChecksum: checksum,
+            },
+            cleanRut,
+            imageBuffer,
+          );
+          if (firmaResult.success) {
+            await this.saveSignedFile(
+              firmaResult.signatureInfo.signedFiles[0],
+              document,
+            );
+            pendingSignature.isSigned = true;
+            pendingSignature.signedAt = new Date();
+            await transactionalEntityManager.save(pendingSignature);
+  
+            const allSigned = document.signatures.every((s) => s.isSigned);
+            if (allSigned) {
+              document.isFullySigned = true;
+              await transactionalEntityManager.save(document);
+            }
+  
+            return {
+              message: 'Documento firmado exitosamente',
+              signature: pendingSignature,
+              firmaInfo: firmaResult.signatureInfo,
+            };
+          } else {
+            throw new BadRequestException(
+              'La firma digital no se pudo completar',
+            );
+          }
+        } catch (error) {
           throw new BadRequestException(
-            'La firma digital no se pudo completar',
+            `Error al firmar el documentoo: ${error.message}`,
           );
         }
-      } catch (error) {
-        throw new BadRequestException(
-          `Error al firmar el documentoo: ${error.message}`,
-        );
-      }
-    });
+      });
+    }  catch (error) {
+      console.error('Error en signDocument:', error);
+      throw error;
+    }
+
   }
 
   private cleanRut(rut: string) {

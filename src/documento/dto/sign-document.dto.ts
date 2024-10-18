@@ -1,10 +1,11 @@
 import { Transform, Type } from "class-transformer";
-import { IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString, IsInt, Min, MaxLength, IsUUID } from "class-validator";
+import { IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString, IsInt, Min, MaxLength, IsUUID, IsEnum } from "class-validator";
+import { EntityType } from "src/enums/entity-type.enum";
 
 export class SignDocumentDto {
-    @IsString()
+    @IsEnum(EntityType)
     @IsNotEmpty()
-    entity: string;
+    entity: EntityType;
 
     @IsString()
     @IsNotEmpty()
@@ -15,16 +16,6 @@ export class SignDocumentDto {
     @IsNotEmpty()
     @Type(()=>Boolean)
     isAttended: boolean;
-
-    @IsString()
-    @IsOptional()
-    @MaxLength(50)
-    cargoFirmante?: string;
-
-    @IsString()
-    @IsOptional()
-    @MaxLength(100)
-    nombreFirmante?: string;
     
     @IsInt()
     @IsNotEmpty()
