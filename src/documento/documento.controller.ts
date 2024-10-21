@@ -110,7 +110,7 @@ export class DocumentoController {
       };
     } catch (error) {
       throw new BadRequestException(
-        `Error al firmar el documento: ${error.message}`,
+        `${error.message}`,
       );
     }
   }

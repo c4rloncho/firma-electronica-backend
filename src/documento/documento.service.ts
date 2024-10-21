@@ -667,6 +667,7 @@ export class DocumentoService {
     documentName?: string,
   ): Promise<{
     data: {
+      signatureId:number;
       id: number;
       name: string;
       fileName: string;
@@ -718,6 +719,7 @@ export class DocumentoService {
       doc.signatures
         .filter((sig) => ownerRuts.includes(sig.ownerRut))
         .map((sig) => ({
+          signatureId:sig.id,
           id: doc.id,
           name: doc.name,
           fileName: doc.fileName,
@@ -743,7 +745,7 @@ export class DocumentoService {
    * @returns Promesa que resuelve a la información detallada del documento, incluyendo sus firmas.
    */
   async getInfoDocumentId(id: number) {
-    return await this.documentRepository.find({
+    return await this.documentRepository.findOne({
       where: { id: id },
       relations: ['signatures'],
     });

@@ -54,6 +54,9 @@ export class DelegateService {
           `No se encontró un funcionario con RUT ${ownerRut}`,
         );
       }
+      if(ownerRut === delegateRut){
+        throw new BadRequestException('No puedes seleccionarte a ti mismo como delegado');
+      }
 
       if (!delegate) {
         throw new NotFoundException(

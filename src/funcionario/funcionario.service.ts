@@ -7,8 +7,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Funcionario } from './entities/funcionario.entity';
-import { QueryFailedError, Repository } from 'typeorm';
+import { ILike, QueryFailedError, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
+import { FuncionarioResponse } from './dto/funcionario-responde.dto';
 
 @Injectable()
 export class FuncionarioService {
@@ -17,20 +18,22 @@ export class FuncionarioService {
     private readonly funcionarioRepository: Repository<Funcionario>,
   ) {}
 
-  async getByRut(rut: string): Promise<Funcionario> {
-    if (!rut || rut.trim() === '') {
-      throw new BadRequestException('El RUT no puede estar vacío');
-    }
-
-    const funcionario = await this.funcionarioRepository.findOne({
-      where: { rut },
+  async searchFuncionarios(query: string): Promise<FuncionarioResponse[]> {
+    const funcionarios = await this.funcionarioRepository.find({
+      where: [
+        { rut: query },
+        { nombre: ILike(`%${query}%`) },
+      ],
+      take: 10, // Limita los resultados a 10 para evitar sobrecarga
     });
-
-    if (!funcionario) {
-      throw new NotFoundException(`No se encontró funcionario con RUT ${rut}`);
-    }
-
-    return funcionario;
+    const response:FuncionarioResponse[] =  funcionarios.map((f)=>{
+      console.log(funcionarios[0])
+      return {
+        rut:f.rut,
+        nombre:f.nombre,
+      }
+    })
+    return response
   }
 
 }

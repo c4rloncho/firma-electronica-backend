@@ -12,6 +12,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { FuncionarioService } from './funcionario.service';
@@ -24,18 +25,18 @@ export class FuncionarioController {
  
 
   //get info de un usuario 
-  // @Get(':rut')
-  // @UseGuards(AuthGuard('jwt'))
-  // async getFuncionarioByRut(@Param('rut') rut: string) {
-  //   try {
-  //     const funcionario = await this.funcionarioService.getByRut(rut);
-  //     return funcionario;
-  //   } catch (error) {
-  //     throw new InternalServerErrorException(
-  //       'Ocurrió un error al procesar la solicitud',
-  //     );
-  //   }
-  // }
+  @Get('buscar')
+  @UseGuards(AuthGuard('jwt'))
+  async searchFuncionarios(@Query('query') query: string) {
+    try {
+      const funcionarios = await this.funcionarioService.searchFuncionarios(query);
+      return funcionarios;
+    } catch (error) {
+      throw new InternalServerErrorException(
+        'Ocurrió un error al procesar la solicitud',
+      );
+    }
+  }
   
 
 }

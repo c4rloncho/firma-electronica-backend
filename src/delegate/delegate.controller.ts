@@ -10,6 +10,9 @@ import {
   HttpStatus,
   UseGuards,
   Req,
+  HttpException,
+  BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { DelegateService } from './delegate.service';
 import { Delegate } from './entities/delegado.entity';
@@ -23,6 +26,7 @@ import { Cargo } from 'src/auth/dto/cargo.enum';
 export class DelegateController {
   constructor(private readonly delegateService: DelegateService) {}
 
+
   @Post()
   @UseGuards(AuthGuard('jwt'))
   @HttpCode(HttpStatus.CREATED)
@@ -32,7 +36,11 @@ export class DelegateController {
   ): Promise<Delegate> {
     const user: User = req.user;
     const { delegateRut } = body;
-    return this.delegateService.appointDelegate(user.rut, delegateRut);
+    try {
+      return await this.delegateService.appointDelegate(user.rut, delegateRut);
+    } catch (error) {
+      throw error;
+    }
   }
 
   @Delete()
