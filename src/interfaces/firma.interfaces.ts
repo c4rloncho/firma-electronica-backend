@@ -34,3 +34,10 @@ export interface PendingSignature {
   fecha: Date | null;
   isMyTurn: boolean;
 }
+
+export interface SignatureEvent {
+  documentId: number;
+  path: string;
+  checksum: string;
+  timestamp: Date;
+}

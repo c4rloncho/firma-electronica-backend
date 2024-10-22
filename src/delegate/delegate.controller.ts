@@ -76,7 +76,7 @@ export class DelegateController {
   async getDelegates(): Promise<Delegate[]> {
     return this.delegateService.getDelegates();
   }
-  @Get('my-delegates')
+  @Get('my-delegate')
   @UseGuards(AuthGuard('jwt'))
   @HttpCode(HttpStatus.OK)
   async getDelegatesRut(

@@ -4,6 +4,7 @@ import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -47,6 +48,7 @@ import { SignerType } from 'src/enums/signer-type.enum';
  */
 @Injectable()
 export class DocumentoService {
+  private readonly logger = new Logger(DocumentoService.name);
   constructor(
     @InjectRepository(Document, 'secondConnection')
     private readonly documentRepository: Repository<Document>,
@@ -297,7 +299,6 @@ export class DocumentoService {
           );
           //limpieza y transformacion de run que pide la api
           const cleanRut = this.cleanRut(run);
-          (cleanRut);
           const firmaResult = await this.firmaService.signdocument(
             {
               ...input,
