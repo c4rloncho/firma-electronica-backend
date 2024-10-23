@@ -142,4 +142,7 @@ export class Funcionario {
 
   @Column({ type: 'varchar', length: 8, nullable: true })
   plantillasdepto: string;
+
+  @Column({ nullable: true })
+  refreshToken?: string;
 }

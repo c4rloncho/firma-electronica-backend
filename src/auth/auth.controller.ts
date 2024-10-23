@@ -8,6 +8,7 @@ import {
   NotFoundException,
   Param,
   Post,
+  Req,
   Res,
   UnauthorizedException,
   UseGuards,
@@ -32,19 +33,24 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     try {
-      const { access_token, expiresIn } =
+      const { access_token, refresh_token,user } =
         await this.authService.validateEmployee(input);
 
-      res.cookie('access_token', access_token, {
+      res.cookie('refresh_token', refresh_token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV !== 'development',
+        secure: process.env.NODE_ENV === 'production',
         sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-        maxAge: 3600000,  //1h
+        path: '/',
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 días
       });
 
-      return { message: 'Login successful', expiresIn };
-    }  catch (error) {
-  
+      // Devolver el access token en el body para que el frontend lo maneje
+      return { 
+        message: 'Login successful',
+        access_token ,// El frontend lo guardará en memoria o localStorage
+        user
+      };
+    } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw new HttpException('Invalid credentials', HttpStatus.UNAUTHORIZED);
       }
@@ -57,7 +63,6 @@ export class AuthController {
         throw new HttpException('User not found', HttpStatus.NOT_FOUND);
       }
   
-      // For any other error types
       throw new HttpException(
         'An unexpected error occurred during login. Please try again later.',
         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -65,15 +70,40 @@ export class AuthController {
     }
   }
 
+  @Post('refresh')
+  @UseGuards(AuthGuard('jwt-refresh'))
+  async refreshToken(@Req() req) {
+    const { rut, refreshToken } = req.user;
+    const access_token = await this.authService.refreshToken(rut, refreshToken);
+    
+    // Devolver nuevo access token
+    return { access_token };
+  }
+
   @Post('/logout')
-  async logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie('access_token', {
-      httpOnly: true,
-      secure: this.configService.get('NODE_ENV') === 'production',
-      sameSite: 'strict',
-      path: '/',
-    });
-    return { message: 'Logout successful' };
+  @UseGuards(AuthGuard('jwt'))
+  async logout(
+    @Req() req,
+    @Res({ passthrough: true }) res: Response
+  ) {
+    try {
+      await this.authService.logout(req.user.rut);
+  
+      // Solo necesitamos limpiar el refresh token cookie
+      res.clearCookie('refresh_token', {
+        httpOnly: true,
+        secure: this.configService.get('NODE_ENV') === 'production',
+        sameSite: 'strict',
+        path: '/',
+      });
+  
+      return {
+        message: 'Logout exitoso',
+        statusCode: 200
+      };
+    } catch (error) {
+      throw new UnauthorizedException('Error al cerrar sesión');
+    }
   }
 
   @Get('check')
@@ -81,12 +111,4 @@ export class AuthController {
   checkAuth() {
     return { isAuthenticated: true };
   }
-  // @Post('/register')
-  // async register(@Body()input:RegisterDto){
-  //   try {
-  //     return this.authService.registerEmployee(input);
-  //   } catch (error) {
-
-  //   }
-  // }
 }

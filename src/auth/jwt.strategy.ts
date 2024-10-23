@@ -7,11 +7,10 @@ import { Request } from 'express';
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
+    private configService: ConfigService
   ) {
     super({
-      jwtFromRequest: ExtractJwt.fromExtractors([(request: Request) => {
-        return request?.cookies?.access_token;
-      }]),
+      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       secretOrKey: process.env.JWT_CONSTANT,
     });
@@ -21,6 +20,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!payload) {
       throw new UnauthorizedException();
     }
-    return { rut: payload.rut, name: payload.nombre,privilegio:payload.privilegio };
+    return { 
+      rut: payload.sub, 
+      name: payload.nombre,
+      privilegio: payload.privilegio 
+    };
   }
 }

@@ -5,7 +5,7 @@ import { lastValueFrom, NotFoundError } from 'rxjs';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs/promises';
-import * as path from 'path';
+import * as fs1 from 'fs';
 import { SignResponse, SignedFile } from 'src/interfaces/firma.interfaces';
 import { SignDocumentDto } from 'src/documento/dto/sign-document.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -47,22 +47,7 @@ export class FirmaService {
     const urx = llx + width;
     const ury = lly + height;
   
-    return `<AgileSignerConfig>
-      <Application id="THIS-CONFIG">
-        <pdfPassword></pdfPassword>
-        <Signature>
-          <Visible active="true" layer2="false" label="true" pos="1">
-            <llx>${llx}</llx>
-            <lly>${lly}</lly>
-            <urx>${urx}</urx>
-            <ury>${ury}</ury>
-            <page>LAST</page>
-            <image>BASE64</image>
-            <BASE64VALUE>${imageBase64}</BASE64VALUE>
-          </Visible>
-        </Signature>
-      </Application>
-    </AgileSignerConfig>`;
+    return `<AgileSignerConfig><Application id=\"THIS-CONFIG\"><pdfPassword/><Signature><Visible active=\"true\" layer2=\"false\" label=\"true\" pos=\"1\"><llx>${llx}</llx><lly>${lly}</lly><urx>${urx}</urx><ury>${ury}</ury><page>LAST</page><image>BASE64</image><BASE64VALUE>${imageBase64}</BASE64VALUE></Visible></Signature></Application></AgileSignerConfig>`;
   }
   /**
    * Genera un token JWT para la firma del documento.
@@ -119,6 +104,24 @@ export class FirmaService {
       headers['OTP'] = input.otp;
     }
 
+    const requestInfo = {
+      url: this.configService.get<string>('API_URL'),
+      method: 'POST',
+      headers: headers,
+      body: payload
+  };
+    // Guardar en archivo JSON
+    fs1.writeFileSync('request-log.json', JSON.stringify(requestInfo, null, 2));
+
+    // Guardar en archivo TXT
+    fs1.writeFileSync(
+        'request-log.txt',
+        `Request a API externa:\n` +
+        `URL: ${requestInfo.url}\n` +
+        `Method: ${requestInfo.method}\n` +
+        `Headers: ${JSON.stringify(headers, null, 2)}\n` +
+        `Body: ${JSON.stringify(payload, null, 2)}`
+    );
     try {
       const response = await lastValueFrom(
         this.httpService.post(
