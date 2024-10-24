@@ -33,7 +33,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     try {
-      const { access_token, refresh_token,user } =
+      const { access_token, refresh_token, user } =
         await this.authService.validateEmployee(input);
 
       res.cookie('refresh_token', refresh_token, {
@@ -41,28 +41,28 @@ export class AuthController {
         secure: process.env.NODE_ENV === 'production',
         sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
         path: '/',
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 días
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
       });
 
       // Devolver el access token en el body para que el frontend lo maneje
-      return { 
+      return {
         message: 'Login successful',
-        access_token ,// El frontend lo guardará en memoria o localStorage
-        user
+        access_token, // El frontend lo guardará en memoria o localStorage
+        user,
       };
     } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw new HttpException('Invalid credentials', HttpStatus.UNAUTHORIZED);
       }
-  
+
       if (error instanceof BadRequestException) {
         throw new HttpException('Invalid input data', HttpStatus.BAD_REQUEST);
       }
-  
+
       if (error instanceof NotFoundException) {
         throw new HttpException('User not found', HttpStatus.NOT_FOUND);
       }
-  
+
       throw new HttpException(
         'An unexpected error occurred during login. Please try again later.',
         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -72,23 +72,30 @@ export class AuthController {
 
   @Post('refresh')
   @UseGuards(AuthGuard('jwt-refresh'))
-  async refreshToken(@Req() req) {
+  async refreshToken(@Req() req, @Res({ passthrough: true }) res: Response) {
+    console.log('refrescando token');
     const { rut, refreshToken } = req.user;
-    const access_token = await this.authService.refreshToken(rut, refreshToken);
-    
+    const { access_token, user, refresh_token } =
+      await this.authService.refreshToken(rut, refreshToken);
+
+    res.cookie('refresh_token', refresh_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
+    });
+
     // Devolver nuevo access token
-    return { access_token };
+    return { access_token,user };
   }
 
   @Post('/logout')
   @UseGuards(AuthGuard('jwt'))
-  async logout(
-    @Req() req,
-    @Res({ passthrough: true }) res: Response
-  ) {
+  async logout(@Req() req, @Res({ passthrough: true }) res: Response) {
     try {
       await this.authService.logout(req.user.rut);
-  
+
       // Solo necesitamos limpiar el refresh token cookie
       res.clearCookie('refresh_token', {
         httpOnly: true,
@@ -96,10 +103,10 @@ export class AuthController {
         sameSite: 'strict',
         path: '/',
       });
-  
+
       return {
         message: 'Logout exitoso',
-        statusCode: 200
+        statusCode: 200,
       };
     } catch (error) {
       throw new UnauthorizedException('Error al cerrar sesión');
@@ -107,7 +114,7 @@ export class AuthController {
   }
 
   @Get('check')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt-refresh'))
   checkAuth() {
     return { isAuthenticated: true };
   }

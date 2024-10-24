@@ -6,32 +6,21 @@ import { Funcionario } from 'src/funcionario/entities/funcionario.entity';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtStrategy } from './jwt.strategy';
+import { RefreshTokenStrategy } from './refresh-token.strategy';
 
 @Module({
-  imports:[TypeOrmModule.forFeature([Funcionario],'default'),
-  JwtModule.registerAsync({
-    imports: [ConfigModule],
-    useFactory: async (configService: ConfigService) => ({
-      secret: configService.get<string>('JWT_CONSTANT'),
-      signOptions: { 
-        expiresIn: configService.get<string>('JWT_EXPIRATION'),
-      },
+  imports: [
+    TypeOrmModule.forFeature([Funcionario], 'default'),
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        secret: configService.get<string>('JWT_CONSTANT'),
+      }),
+      inject: [ConfigService],
     }),
-    inject: [ConfigService],
-  }),
-  JwtModule.registerAsync({
-    imports: [ConfigModule],
-    useFactory: async (configService: ConfigService) => ({
-      secret: configService.get<string>('JWT_REFRESH_CONSTANT'),
-      signOptions: { 
-        expiresIn: configService.get<string>('JWT_REFRESH_EXPIRATION'),
-      },
-    }),
-    inject: [ConfigService],
-  })
-],
+  ],
   controllers: [AuthController],
-  providers: [AuthService,JwtStrategy],
-  exports:[AuthService,JwtStrategy]
+  providers: [AuthService, JwtStrategy, RefreshTokenStrategy],
+  exports: [AuthService, JwtStrategy, RefreshTokenStrategy],
 })
 export class AuthModule {}
