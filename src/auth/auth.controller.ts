@@ -73,7 +73,6 @@ export class AuthController {
   @Post('refresh')
   @UseGuards(AuthGuard('jwt-refresh'))
   async refreshToken(@Req() req, @Res({ passthrough: true }) res: Response) {
-    console.log('refrescando token');
     const { rut, refreshToken } = req.user;
     const { access_token, user, refresh_token } =
       await this.authService.refreshToken(rut, refreshToken);
@@ -85,8 +84,6 @@ export class AuthController {
       path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
     });
-
-    // Devolver nuevo access token
     return { access_token,user };
   }
 

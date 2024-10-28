@@ -43,45 +43,45 @@ export class DocumentoController {
     private configService: ConfigService,
   ) {}
 
-  @Post('create')
-  @UseGuards(AuthGuard('jwt'))
-  @UseInterceptors(FileInterceptor('file'))
-  async createDocument(
-    @Req() req,
-    @Body() createDocumentDto: CreateDocumentDto,
-    @UploadedFile() file: Express.Multer.File,
-  ) {
-    const creatorRut = req.user.rut;
-    if (!file) {
-      throw new HttpException(
-        'No se ha proporcionado ningún archivo',
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-
-    try {
-      const document = await this.documentoService.createDocument(
-        creatorRut,
-        createDocumentDto,
-        file,
-      );
-      return {
-        message: 'Documento creado exitosamente',
-        document,
-      };
-    } catch (error) {
-      console.error('Error al crear el documento:', error);
-
-      if (error.message.includes('Failed to save file')) {
+    @Post('create')
+    @UseGuards(AuthGuard('jwt'))
+    @UseInterceptors(FileInterceptor('file'))
+    async createDocument(
+      @Req() req,
+      @Body() createDocumentDto: CreateDocumentDto,
+      @UploadedFile() file: Express.Multer.File,
+    ) {
+      const creatorRut = req.user.rut;
+      if (!file) {
         throw new HttpException(
-          'Error al guardar el archivo',
-          HttpStatus.INTERNAL_SERVER_ERROR,
+          'No se ha proporcionado ningún archivo',
+          HttpStatus.BAD_REQUEST,
         );
-      } else {
-        throw error
+      }
+
+      try {
+        const document = await this.documentoService.createDocument(
+          creatorRut,
+          createDocumentDto,
+          file,
+        );
+        return {
+          message: 'Documento creado exitosamente',
+          document,
+        };
+      } catch (error) {
+        console.error('Error al crear el documento:', error);
+
+        if (error.message.includes('Failed to save file')) {
+          throw new HttpException(
+            'Error al guardar el archivo',
+            HttpStatus.INTERNAL_SERVER_ERROR,
+          );
+        } else {
+          throw error
+        }
       }
     }
-  }
 
 
   //firmar un documento 

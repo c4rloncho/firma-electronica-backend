@@ -99,7 +99,6 @@ export class FirmaService {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
-    console.log(token)
     if (input.isAttended && input.otp) {
       headers['OTP'] = input.otp;
     }
