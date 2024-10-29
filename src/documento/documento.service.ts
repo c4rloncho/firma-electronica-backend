@@ -23,11 +23,10 @@ import {
   MoreThan,
   MoreThanOrEqual,
   Repository,
+  ReturningStatementNotSupportedError,
 } from 'typeorm';
 import { Document } from './entities/document.entity';
-import {
-  DocumentSignature,
-} from './entities/document-signature.entity';
+import { DocumentSignature } from './entities/document-signature.entity';
 import { SignerDto } from './dto/signer.dto';
 import { SignDocumentDto } from './dto/sign-document.dto';
 import { FirmaService } from 'src/firma/firma.service';
@@ -42,6 +41,7 @@ import { Cargo } from 'src/auth/dto/cargo.enum';
 import { RemoteStorageService } from 'src/documento/sftp-storage-service';
 import { SignatureStatus } from './dto/signature-status.enum';
 import { SignerType } from 'src/enums/signer-type.enum';
+import { Attachment } from 'src/attachment/entities/attachment .entity';
 
 /**
  * Servicio para manejar operaciones relacionadas con documentos y firmas.
@@ -55,7 +55,7 @@ export class DocumentoService {
     @InjectRepository(Delegate, 'secondConnection')
     private readonly delegateRepository: Repository<Delegate>,
     @InjectDataSource('secondConnection')
-    private readonly signatureRepository:Repository<DocumentSignature>,
+    private readonly signatureRepository: Repository<DocumentSignature>,
     @InjectDataSource('secondConnection')
     private dataSource: DataSource,
     private firmaService: FirmaService,
@@ -219,7 +219,6 @@ export class DocumentoService {
   ) {
     try {
       return this.dataSource.transaction(async (transactionalEntityManager) => {
-      
         const { documentId } = input;
         const document = await transactionalEntityManager.findOne(Document, {
           where: { id: documentId },
@@ -230,7 +229,7 @@ export class DocumentoService {
             `Documento con el id ${documentId} no encontrado`,
           );
         }
-  
+
         // Verificar si la persona ya ha firmado el documento
         const alreadySigned = document.signatures.some(
           (s) => s.signerRut === run && s.isSigned,
@@ -238,7 +237,7 @@ export class DocumentoService {
         if (alreadySigned) {
           throw new BadRequestException('Ya ha firmado este documento');
         }
-  
+
         // Buscar la firma pendiente como firmante original
         let pendingSignature = document.signatures.find(
           (s) => !s.isSigned && s.ownerRut === run,
@@ -258,14 +257,14 @@ export class DocumentoService {
                 (s) => s.ownerRut === delegation.ownerRut && s.ownerRut !== run,
               ),
           );
-  
+
           if (isDelegateForAnotherSigner) {
             throw new BadRequestException(
               'Usted es firmante original y delegado de otro firmante en este documento. Por favor, contacte al administrador.',
             );
           }
         }
-  
+
         // Si no es firmante original, buscar como delegado
         if (!pendingSignature) {
           pendingSignature = document.signatures.find(
@@ -273,23 +272,23 @@ export class DocumentoService {
               !s.isSigned &&
               activeDelegations.some((d) => d.ownerRut === s.ownerRut),
           );
-  
+
           if (!pendingSignature) {
             throw new BadRequestException(
               'No corresponde firmar o el delegado no está activo para ningún propietario que deba firmar',
             );
           }
         }
-  
+
         // Actualizar el signerRut con quien realmente está firmando
         pendingSignature.signerRut = run;
-  
+
         try {
           this.validateSignatureOrder(document.signatures, pendingSignature);
         } catch (error) {
           throw new BadRequestException(error.message);
         }
-  
+
         try {
           const dateObject = new Date(document.date);
           const documentYear = dateObject.getFullYear().toString();
@@ -316,13 +315,13 @@ export class DocumentoService {
             pendingSignature.isSigned = true;
             pendingSignature.signedAt = new Date();
             await transactionalEntityManager.save(pendingSignature);
-  
+
             const allSigned = document.signatures.every((s) => s.isSigned);
             if (allSigned) {
               document.isFullySigned = true;
               await transactionalEntityManager.save(document);
             }
-  
+
             return {
               message: 'Documento firmado exitosamente',
               signature: pendingSignature,
@@ -339,11 +338,10 @@ export class DocumentoService {
           );
         }
       });
-    }  catch (error) {
+    } catch (error) {
       console.error('Error en signDocument:', error);
       throw error;
     }
-
   }
 
   private cleanRut(rut: string) {
@@ -440,52 +438,63 @@ export class DocumentoService {
    * @throws BadRequestException si el ID es inválido.
    * @throws NotFoundException si el documento no se encuentra.
    */
-  async getById(id: number, user: User, res: Response, action: 'view' | 'download' = 'view') {
+  async getById(
+    id: number,
+    user: User,
+    res: Response,
+    action: 'view' | 'download' = 'view',
+  ) {
     if (!id || isNaN(id)) {
       throw new BadRequestException(
         'ID inválido. Debe ser un número entero positivo.',
       );
     }
-  
+
     try {
       const document = await this.documentRepository.findOne({
         where: { id },
         relations: ['signatures'],
       });
-  
+
       if (!document) {
         throw new NotFoundException(`Documento no encontrado con id ${id}`);
       }
-  
+
       if (user.privilegio !== Cargo.ADMIN) {
         const isAuthorized =
           document.creatorRut === user.rut ||
           document.signatures.some(
             (s) => s.ownerRut === user.rut || s.signerRut === user.rut,
           );
-  
+
         if (!isAuthorized) {
           throw new UnauthorizedException(
             'No tienes permiso para acceder a este documento',
           );
         }
       }
-  
+
       const dateObject = new Date(document.date);
       const documentYear = dateObject.getFullYear().toString();
       const remoteFilePath = `/uploads/${documentYear}/${document.fileName}`;
-  
+
       // Obtener el stream del archivo desde el servidor SFTP
       const fileStream = await this.remoteStorage.getFileStream(remoteFilePath);
-  
+
       // Configurar los headers de la respuesta según la acción
       res.setHeader('Content-Type', 'application/pdf');
       if (action === 'download') {
-        res.setHeader('Content-Disposition', `attachment; filename="${document.fileName}"`);
+        res.setHeader(
+          'Content-Disposition',
+          `attachment; filename="${document.fileName}"`,
+        );
       } else {
-        res.setHeader('Content-Disposition', `inline; filename="${document.fileName}"`);
+        res.setHeader(
+          'Content-Disposition',
+          `inline; filename="${document.fileName}"`,
+        );
       }
-  
+
       // Transmitir el archivo al cliente
       fileStream.pipe(res);
     } catch (error) {
@@ -500,6 +509,72 @@ export class DocumentoService {
         `Error al buscar o transmitir el documento con id ${id}: ${error.message}`,
       );
     }
+  }
+
+  async getMyCreatedDocument(
+    rut: string,
+    page: number,
+    limit: number,
+    name?: string,
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<{
+    data: {
+      documentId: number;
+      creatorRut: string;
+      createAt: Date;
+      documentName: string;
+      attachmentId: number;
+      attachmentName: string;
+    }[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    const query = await this.documentRepository
+      .createQueryBuilder('document')
+      .leftJoinAndSelect('document.attachments', 'attachment')
+      .where('document.creatorRut = :rut', { rut });
+  
+    if (startDate && endDate) {
+      query.andWhere('document.date BETWEEN :startDate AND :endDate', {
+        startDate,
+        endDate,
+      });
+    } else if (startDate) {
+      query.andWhere('document.date >= :startDate', { startDate });
+    } else if (endDate) {
+      query.andWhere('document.date <= :endDate', { endDate });
+    }
+  
+    if (name) {
+      query.andWhere('document.name ILIKE :name', { name: `%${name}%` });
+    }
+  
+    query.orderBy('document.date', 'DESC');
+    query.skip((page - 1) * limit).take(limit);
+  
+    const documents = await query.getMany();
+  
+    const dataFormatted = documents.flatMap((d) => 
+      d.attachments.map(a => ({
+        documentId: d.id,
+        creatorRut: d.creatorRut,
+        createAt: d.date,
+        documentName: d.name,
+        attachmentId: a.id,
+        attachmentName: a.name,
+      }))
+    );
+  
+    return {
+      data: dataFormatted,
+      total: dataFormatted.length,
+      page,
+      limit,
+      totalPages: Math.ceil( dataFormatted.length / limit),
+    };
   }
 
   /**
@@ -521,7 +596,7 @@ export class DocumentoService {
     documentName?: string,
   ): Promise<{
     data: {
-      idDocument:number,
+      idDocument: number;
       id: number;
       name: string;
       fileName: string;
@@ -543,53 +618,68 @@ export class DocumentoService {
     ownerRuts.push(rut);
 
     //busca todos los documentos del funcinoario y a todos a los que delega
-    const query = await this.documentRepository.createQueryBuilder('document')
-    .leftJoinAndSelect('document.signatures', 'signature')
-    .where(qb => {
-      const subQuery = qb.subQuery()
-        .select('DISTINCT(subDoc.id)')
-        .from(Document, 'subDoc')
-        .leftJoin('subDoc.signatures', 'subSig')
-        .where('subSig.ownerRut IN (:...ownerRuts)', { ownerRuts })
-        .getQuery();
-      return 'document.id IN ' + subQuery;
-    })
-    .orderBy('document.date', 'DESC');
+    const query = await this.documentRepository
+      .createQueryBuilder('document')
+      .leftJoinAndSelect('document.signatures', 'signature')
+      .where((qb) => {
+        const subQuery = qb
+          .subQuery()
+          .select('DISTINCT(subDoc.id)')
+          .from(Document, 'subDoc')
+          .leftJoin('subDoc.signatures', 'subSig')
+          .where('subSig.ownerRut IN (:...ownerRuts)', { ownerRuts })
+          .getQuery();
+        return 'document.id IN ' + subQuery;
+      })
+      .orderBy('document.date', 'DESC');
 
-  
-  if (startDate && endDate) {
-    query.andWhere('document.date BETWEEN :startDate AND :endDate', { startDate, endDate });
-  } else if (startDate) {
-    query.andWhere('document.date >= :startDate', { startDate });
-  } else if (endDate) {
-    query.andWhere('document.date <= :endDate', { endDate });
-  }
-  if (documentName) {
-    query.andWhere('document.name ILIKE :nombre', { nombre: `%${documentName}%` });
-  }
+    if (startDate && endDate) {
+      query.andWhere('document.date BETWEEN :startDate AND :endDate', {
+        startDate,
+        endDate,
+      });
+    } else if (startDate) {
+      query.andWhere('document.date >= :startDate', { startDate });
+    } else if (endDate) {
+      query.andWhere('document.date <= :endDate', { endDate });
+    }
+    if (documentName) {
+      query.andWhere('document.name ILIKE :nombre', {
+        nombre: `%${documentName}%`,
+      });
+    }
 
     const documents = await query
       .skip((page - 1) * limit)
       .take(limit)
       .getMany();
 
-    const dataFormatted = documents.flatMap(doc => 
-      doc.signatures.filter(sig => !sig.isSigned && (ownerRuts.includes(sig.ownerRut)))
-      .map(sig => ({
-        idDocument:doc.id,
-        id: sig.id,
-        name: doc.name,
-        fileName: doc.fileName,
-        signatureType: sig.ownerRut === rut ? 'Titular' as const : 'Subrogante' as const,
-        ownerRut: sig.ownerRut,
-        fecha: doc.date,
-        signatureStatus: this.evaluateSignatureStatus(doc, rut, sig, delegates)
-      }))
+    const dataFormatted = documents.flatMap((doc) =>
+      doc.signatures
+        .filter((sig) => !sig.isSigned && ownerRuts.includes(sig.ownerRut))
+        .map((sig) => ({
+          idDocument: doc.id,
+          id: sig.id,
+          name: doc.name,
+          fileName: doc.fileName,
+          signatureType:
+            sig.ownerRut === rut
+              ? ('Titular' as const)
+              : ('Subrogante' as const),
+          ownerRut: sig.ownerRut,
+          fecha: doc.date,
+          signatureStatus: this.evaluateSignatureStatus(
+            doc,
+            rut,
+            sig,
+            delegates,
+          ),
+        })),
     );
 
     return {
       data: dataFormatted,
-      total:dataFormatted.length,
+      total: dataFormatted.length,
       page,
       limit,
       totalPages: Math.ceil(dataFormatted.length / limit),
@@ -600,11 +690,11 @@ export class DocumentoService {
     document: Document,
     rut: string,
     currentSignature: DocumentSignature,
-    activeDelegations: Delegate[]
+    activeDelegations: Delegate[],
   ): SignatureStatus {
     // Verificar si la persona ya ha firmado el documento
     const alreadySigned = document.signatures.some(
-      (s) => s.signerRut === rut && s.isSigned
+      (s) => s.signerRut === rut && s.isSigned,
     );
 
     if (alreadySigned) {
@@ -612,26 +702,29 @@ export class DocumentoService {
     }
 
     // Verificar si es un delegado activo para alguna firma pendiente
-    const canSignAsDelegate = activeDelegations.some(delegation =>
-      document.signatures.some(s => 
-        s.ownerRut === delegation.ownerRut && !s.isSigned
-      )
+    const canSignAsDelegate = activeDelegations.some((delegation) =>
+      document.signatures.some(
+        (s) => s.ownerRut === delegation.ownerRut && !s.isSigned,
+      ),
     );
 
     // Verificar si es un firmante original y también un delegado activo
-    const isDelegateAndOriginalSigner = 
-      currentSignature.ownerRut === rut && 
-      canSignAsDelegate && 
-      activeDelegations.some(delegation => 
-        document.signatures.some(s => 
-          s.ownerRut === delegation.ownerRut && s.ownerRut !== rut && !s.isSigned
-        )
+    const isDelegateAndOriginalSigner =
+      currentSignature.ownerRut === rut &&
+      canSignAsDelegate &&
+      activeDelegations.some((delegation) =>
+        document.signatures.some(
+          (s) =>
+            s.ownerRut === delegation.ownerRut &&
+            s.ownerRut !== rut &&
+            !s.isSigned,
+        ),
       );
 
     if (isDelegateAndOriginalSigner) {
       return SignatureStatus.DelegateConflict;
     }
-    (document.id,document.signatures)
+    document.id, document.signatures;
     if (this.isMyTurnToSign(document.signatures, currentSignature)) {
       return SignatureStatus.CanSign;
     }
@@ -668,7 +761,7 @@ export class DocumentoService {
     documentName?: string,
   ): Promise<{
     data: {
-      signatureId:number;
+      signatureId: number;
       id: number;
       name: string;
       fileName: string;
@@ -682,9 +775,9 @@ export class DocumentoService {
     limit: number;
     totalPages: number;
   }> {
-    (rut);
+    rut;
     const delegates = await this.delegateRepository.find({
-      where: { delegateRut: rut, isActive: true, deletedAt:IsNull() },
+      where: { delegateRut: rut, isActive: true, deletedAt: IsNull() },
     });
 
     const ownerRuts = [...new Set([...delegates.map((d) => d.ownerRut), rut])];
@@ -706,7 +799,9 @@ export class DocumentoService {
     }
 
     if (documentName) {
-      queryBuilder.andWhere('document.name ILIKE :nombre', { nombre: `%${documentName}%` });
+      queryBuilder.andWhere('document.name ILIKE :nombre', {
+        nombre: `%${documentName}%`,
+      });
     }
 
     const [documents, total] = await queryBuilder
@@ -720,13 +815,15 @@ export class DocumentoService {
       doc.signatures
         .filter((sig) => ownerRuts.includes(sig.ownerRut))
         .map((sig) => ({
-          signatureId:sig.id,
+          signatureId: sig.id,
           id: doc.id,
           name: doc.name,
           fileName: doc.fileName,
           isSigned: sig.isSigned,
           signatureType:
-            sig.ownerRut === rut ? ('Titular' as const) : ('Subrogante' as const),
+            sig.ownerRut === rut
+              ? ('Titular' as const)
+              : ('Subrogante' as const),
           ownerRut: sig.ownerRut,
           signedAt: sig.signedAt,
         })),
@@ -734,7 +831,7 @@ export class DocumentoService {
 
     return {
       data: formattedData,
-      total:formattedData.length,
+      total: formattedData.length,
       page,
       limit,
       totalPages: Math.ceil(formattedData.length / limit),

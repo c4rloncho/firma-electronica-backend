@@ -43,48 +43,49 @@ export class DocumentoController {
     private configService: ConfigService,
   ) {}
 
-    @Post('create')
-    @UseGuards(AuthGuard('jwt'))
-    @UseInterceptors(FileInterceptor('file'))
-    async createDocument(
-      @Req() req,
-      @Body() createDocumentDto: CreateDocumentDto,
-      @UploadedFile() file: Express.Multer.File,
-    ) {
-      const creatorRut = req.user.rut;
-      if (!file) {
-        throw new HttpException(
-          'No se ha proporcionado ningún archivo',
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-
-      try {
-        const document = await this.documentoService.createDocument(
-          creatorRut,
-          createDocumentDto,
-          file,
-        );
-        return {
-          message: 'Documento creado exitosamente',
-          document,
-        };
-      } catch (error) {
-        console.error('Error al crear el documento:', error);
-
-        if (error.message.includes('Failed to save file')) {
-          throw new HttpException(
-            'Error al guardar el archivo',
-            HttpStatus.INTERNAL_SERVER_ERROR,
-          );
-        } else {
-          throw error
-        }
-      }
+  @Post('create')
+  @UseGuards(AuthGuard('jwt'))
+  @UseInterceptors(FileInterceptor('file'))
+  async createDocument(
+    @Req() req,
+    @Body('createDocumentDto') createDocumentDto: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    console.log(createDocumentDto)
+    const createDocumentParsed: CreateDocumentDto = JSON.parse(createDocumentDto);
+    const creatorRut = req.user.rut;
+    if (!file) {
+      throw new HttpException(
+        'No se ha proporcionado ningún archivo',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
+    try {
+      const document = await this.documentoService.createDocument(
+        creatorRut,
+        createDocumentParsed,
+        file,
+      );
+      return {
+        message: 'Documento creado exitosamente',
+        document,
+      };
+    } catch (error) {
+      console.error('Error al crear el documento:', error);
 
-  //firmar un documento 
+      if (error.message.includes('Failed to save file')) {
+        throw new HttpException(
+          'Error al guardar el archivo',
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  //firmar un documento
   @Post('sign')
   @UseGuards(AuthGuard('jwt'))
   @UseInterceptors(FileInterceptor('image'))
@@ -109,31 +110,33 @@ export class DocumentoController {
         data: result,
       };
     } catch (error) {
-      throw new BadRequestException(
-        `${error.message}`,
-      );
+      throw new BadRequestException(`${error.message}`);
     }
   }
 
-
   //solo pueden ingresar usuarios con privilegios 'a' Administradores
   @Get('full-signed')
-  @UseGuards(AuthGuard('jwt'),CargosGuard)
+  @UseGuards(AuthGuard('jwt'), CargosGuard)
   @Cargos(Cargo.ADMIN)
   async getFullySigned(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('name') name?: string
+    @Query('name') name?: string,
   ) {
     try {
-      return await this.documentoService.findFullySigned(page, limit, startDate, endDate, name);
+      return await this.documentoService.findFullySigned(
+        page,
+        limit,
+        startDate,
+        endDate,
+        name,
+      );
     } catch (error) {
       throw error;
     }
   }
-
 
   //logica actualizada para que solo puedan acceder al documento los administradores , creador del documento o firmantes
   @Get('get-by-id/:id')
@@ -147,12 +150,13 @@ export class DocumentoController {
     const user: User = req.user;
     try {
       // Ahora pasamos la respuesta (res) al servicio
-      await this.documentoService.
-      getById(id, user, res,action);
+      await this.documentoService.getById(id, user, res, action);
     } catch (error) {
-      if (error instanceof BadRequestException ||
-          error instanceof NotFoundException ||
-          error instanceof InternalServerErrorException) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException ||
+        error instanceof InternalServerErrorException
+      ) {
         throw error;
       } else {
         throw new InternalServerErrorException(
@@ -162,17 +166,14 @@ export class DocumentoController {
     }
   }
 
-
   //obtener la informacion de un documento por su id
   @Get('get-info-document/:id')
   @UseGuards(AuthGuard('jwt'))
-  async(
-    @Param('id', ParseIntPipe) id: number) {
+  async(@Param('id', ParseIntPipe) id: number) {
     try {
       return this.documentoService.getInfoDocumentId(id);
     } catch (error) {}
   }
-
 
   //obtener todas las firmas pendientes de un usuario por el rut
   @Get('get-pending')
@@ -185,7 +186,7 @@ export class DocumentoController {
     @Query('endDate') endDate?: string,
     @Query('name') name?: string,
   ) {
-    const user:User = req.user
+    const user: User = req.user;
     try {
       const result = await this.documentoService.getPendingSignatures(
         user.rut,
@@ -208,7 +209,6 @@ export class DocumentoController {
     }
   }
 
-
   //buscar todos los documentos por  usuario
   @Get('by-rut')
   @UseGuards(AuthGuard('jwt'))
@@ -220,7 +220,7 @@ export class DocumentoController {
     @Query('endDate') endDate?: string,
     @Query('name') name?: string,
   ) {
-    const user = req.user
+    const user = req.user;
     try {
       const result = await this.documentoService.getAllDocumentsByRut(
         user.rut,
@@ -242,26 +242,50 @@ export class DocumentoController {
       );
     }
   }
+  @Get('created-by-me')
+  @UseGuards(AuthGuard('jwt'))
+  async getDocumentCreatedByMe(
+    @Req() req,
+    @Query('page', ParseIntPipe, new DefaultValuePipe(1)) page: number,
+    @Query('limit', ParseIntPipe, new DefaultValuePipe(10)) limit: number,
+    @Query('name') name?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    const rut = req.user.rut
+    const result = await this.documentoService.getMyCreatedDocument(
+      rut,
+      page,
+      limit,
+      name,
+      startDate? new Date(startDate): undefined,
+      endDate? new Date(endDate):undefined,
+    );
+    return result;
+  }
 
-  //realizar un soft delete en el documento en la base de datos 
+  //realizar un soft delete en el documento en la base de datos
   @Delete(':idDocument')
   @UseGuards(AuthGuard('jwt'))
   async deleteDocument(
     @Req() req,
-    @Param('idDocument', ParseIntPipe) idDocument: number
+    @Param('idDocument', ParseIntPipe) idDocument: number,
   ) {
-    const user = req.user
+    const user = req.user;
     try {
       return await this.documentoService.deleteDocument(user.rut, idDocument);
     } catch (error) {
       console.error('Error al eliminar el documento:', error);
-      
+
       if (error instanceof NotFoundException) {
         throw new HttpException(error.message, HttpStatus.NOT_FOUND);
       } else if (error instanceof BadRequestException) {
         throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
       } else {
-        throw new HttpException('No se pudo eliminar el documento', HttpStatus.INTERNAL_SERVER_ERROR);
+        throw new HttpException(
+          'No se pudo eliminar el documento',
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
       }
     }
   }
