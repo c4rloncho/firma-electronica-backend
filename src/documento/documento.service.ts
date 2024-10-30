@@ -520,23 +520,27 @@ export class DocumentoService {
     endDate?: Date,
   ): Promise<{
     data: {
-      documentId: number;
+      id: number;
       creatorRut: string;
-      createAt: Date;
-      documentName: string;
-      attachmentId: number;
-      attachmentName: string;
+      date: Date;
+      name: string;
+      attachments: {
+        id: number;
+        name: string;
+      }[];
     }[];
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
+    meta: {
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    };
   }> {
     const query = await this.documentRepository
       .createQueryBuilder('document')
       .leftJoinAndSelect('document.attachments', 'attachment')
       .where('document.creatorRut = :rut', { rut });
-  
+
     if (startDate && endDate) {
       query.andWhere('document.date BETWEEN :startDate AND :endDate', {
         startDate,
@@ -547,33 +551,34 @@ export class DocumentoService {
     } else if (endDate) {
       query.andWhere('document.date <= :endDate', { endDate });
     }
-  
+
     if (name) {
       query.andWhere('document.name ILIKE :name', { name: `%${name}%` });
     }
-  
+
     query.orderBy('document.date', 'DESC');
     query.skip((page - 1) * limit).take(limit);
-  
-    const documents = await query.getMany();
-  
-    const dataFormatted = documents.flatMap((d) => 
-      d.attachments.map(a => ({
-        documentId: d.id,
-        creatorRut: d.creatorRut,
-        createAt: d.date,
-        documentName: d.name,
-        attachmentId: a.id,
-        attachmentName: a.name,
-      }))
-    );
-  
+
+    const [documents, total] = await query.getManyAndCount();
+
+    // Ahora la respuesta mantiene la estructura anidada natural
     return {
-      data: dataFormatted,
-      total: dataFormatted.length,
-      page,
-      limit,
-      totalPages: Math.ceil( dataFormatted.length / limit),
+      data: documents.map(doc => ({
+        id: doc.id,
+        creatorRut: doc.creatorRut,
+        date: doc.date,
+        name: doc.name,
+        attachments: doc.attachments.map(att => ({
+          id: att.id,
+          name: att.name
+        }))
+      })),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
     };
   }
 
@@ -596,14 +601,15 @@ export class DocumentoService {
     documentName?: string,
   ): Promise<{
     data: {
-      idDocument: number;
-      id: number;
-      name: string;
+      documentId: number;
+      documentName: string;
       fileName: string;
-      signatureType: 'Titular' | 'Subrogante';
-      ownerRut: string;
-      fecha: Date | null;
-      signatureStatus: SignatureStatus;
+      signatures: {
+        signatureId: number;
+        signatureType: 'Titular' | 'Subrogante';
+        ownerRut: string;
+        SignatureStatus: SignatureStatus;
+      }[];
     }[];
     total: number;
     page: number;
@@ -621,16 +627,8 @@ export class DocumentoService {
     const query = await this.documentRepository
       .createQueryBuilder('document')
       .leftJoinAndSelect('document.signatures', 'signature')
-      .where((qb) => {
-        const subQuery = qb
-          .subQuery()
-          .select('DISTINCT(subDoc.id)')
-          .from(Document, 'subDoc')
-          .leftJoin('subDoc.signatures', 'subSig')
-          .where('subSig.ownerRut IN (:...ownerRuts)', { ownerRuts })
-          .getQuery();
-        return 'document.id IN ' + subQuery;
-      })
+      .where('signature.ownerRut IN (:...ownerRuts)',{ownerRuts})
+      .andWhere('signature.isSigned = :isSigned',{isSigned:false})
       .orderBy('document.date', 'DESC');
 
     if (startDate && endDate) {
@@ -649,40 +647,31 @@ export class DocumentoService {
       });
     }
 
-    const documents = await query
+    const [documents,total] = await query
       .skip((page - 1) * limit)
       .take(limit)
-      .getMany();
+      .getManyAndCount();
 
-    const dataFormatted = documents.flatMap((doc) =>
-      doc.signatures
-        .filter((sig) => !sig.isSigned && ownerRuts.includes(sig.ownerRut))
-        .map((sig) => ({
-          idDocument: doc.id,
-          id: sig.id,
-          name: doc.name,
-          fileName: doc.fileName,
-          signatureType:
-            sig.ownerRut === rut
-              ? ('Titular' as const)
-              : ('Subrogante' as const),
-          ownerRut: sig.ownerRut,
-          fecha: doc.date,
-          signatureStatus: this.evaluateSignatureStatus(
-            doc,
-            rut,
-            sig,
-            delegates,
-          ),
-        })),
-    );
+    const dataFormatted = documents.map((doc) => (
+      {documentId:doc.id,
+       documentName:doc.name,
+       fileName:doc.fileName,
+       signatures: doc.signatures.map((sig)=>({
+        signatureId:sig.id,
+        signatureType: sig.ownerRut === rut
+        ? ('Titular' as const)
+        :('Subrogante' as const),
+        ownerRut:sig.ownerRut,
+        SignatureStatus: this.evaluateSignatureStatus(doc,rut,sig,delegates),
+       }))
+      }))
 
     return {
       data: dataFormatted,
-      total: dataFormatted.length,
+      total: total,
       page,
       limit,
-      totalPages: Math.ceil(dataFormatted.length / limit),
+      totalPages: Math.ceil(total / limit),
     };
   }
 

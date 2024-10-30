@@ -242,16 +242,16 @@ export class DocumentoController {
       );
     }
   }
-  @Get('created-by-me')
-  @UseGuards(AuthGuard('jwt'))
-  async getDocumentCreatedByMe(
-    @Req() req,
-    @Query('page', ParseIntPipe, new DefaultValuePipe(1)) page: number,
-    @Query('limit', ParseIntPipe, new DefaultValuePipe(10)) limit: number,
-    @Query('name') name?: string,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-  ) {
+    @Get('created-by-me')
+    @UseGuards(AuthGuard('jwt'))
+    async getDocumentCreatedByMe(
+      @Req() req,
+      @Query('page', ParseIntPipe, new DefaultValuePipe(1)) page: number,
+      @Query('limit', ParseIntPipe, new DefaultValuePipe(10)) limit: number,
+      @Query('name') name?: string,
+      @Query('startDate') startDate?: string,
+      @Query('endDate') endDate?: string,
+    ) {
     const rut = req.user.rut
     const result = await this.documentoService.getMyCreatedDocument(
       rut,
