@@ -5,7 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Document } from './entities/document.entity';
 import { DocumentSignature } from './entities/document-signature.entity';
 import { FirmaModule } from 'src/firma/firma.module';
-import { Attachment } from '../attachment/entities/attachment .entity';
+import { Attachment } from '../attachment/entities/attachment.entity';
 import { Funcionario } from 'src/funcionario/entities/funcionario.entity';
 import { Delegate } from 'src/delegate/entities/delegado.entity';
 import { RemoteStorageService } from './sftp-storage-service';

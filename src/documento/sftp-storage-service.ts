@@ -101,17 +101,9 @@ export class RemoteStorageService {
   async deleteFile(remotePath: string): Promise<void> {
     try {
       await this.connect();
-      await new Promise<void>((resolve, reject) => {
-        this.sftp.unlink(remotePath, (err) => {
-          if (err) {
-            console.error(`Error al eliminar el archivo remoto: ${err.message}`);
-            reject(err);
-          } else {
-            console.log(`Archivo eliminado exitosamente: ${remotePath}`);
-            resolve();
-          }
-        });
-      });
+      // Usar delete en lugar de unlink
+      await this.sftp.delete(remotePath);
+      console.log(`Archivo eliminado exitosamente: ${remotePath}`);
     } catch (error) {
       console.error(`Error al eliminar el archivo remoto: ${error.message}`);
       throw error;

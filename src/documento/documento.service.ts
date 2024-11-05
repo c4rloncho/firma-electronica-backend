@@ -41,7 +41,7 @@ import { Cargo } from 'src/auth/dto/cargo.enum';
 import { RemoteStorageService } from 'src/documento/sftp-storage-service';
 import { SignatureStatus } from './dto/signature-status.enum';
 import { SignerType } from 'src/enums/signer-type.enum';
-import { Attachment } from 'src/attachment/entities/attachment .entity';
+import { Attachment } from 'src/attachment/entities/attachment.entity';
 
 /**
  * Servicio para manejar operaciones relacionadas con documentos y firmas.
@@ -524,17 +524,16 @@ export class DocumentoService {
       creatorRut: string;
       date: Date;
       name: string;
+      isFullysigned: boolean;
       attachments: {
         id: number;
         name: string;
       }[];
     }[];
-    meta: {
-      total: number;
-      page: number;
-      limit: number;
-      totalPages: number;
-    };
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
   }> {
     const query = await this.documentRepository
       .createQueryBuilder('document')
@@ -563,22 +562,21 @@ export class DocumentoService {
 
     // Ahora la respuesta mantiene la estructura anidada natural
     return {
-      data: documents.map(doc => ({
+      data: documents.map((doc) => ({
         id: doc.id,
         creatorRut: doc.creatorRut,
         date: doc.date,
         name: doc.name,
-        attachments: doc.attachments.map(att => ({
+        isFullysigned: doc.isFullySigned,
+        attachments: doc.attachments.map((att) => ({
           id: att.id,
-          name: att.name
-        }))
+          name: att.name,
+        })),
       })),
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit)
-      }
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
     };
   }
 
@@ -627,8 +625,8 @@ export class DocumentoService {
     const query = await this.documentRepository
       .createQueryBuilder('document')
       .leftJoinAndSelect('document.signatures', 'signature')
-      .where('signature.ownerRut IN (:...ownerRuts)',{ownerRuts})
-      .andWhere('signature.isSigned = :isSigned',{isSigned:false})
+      .where('signature.ownerRut IN (:...ownerRuts)', { ownerRuts })
+      .andWhere('signature.isSigned = :isSigned', { isSigned: false })
       .orderBy('document.date', 'DESC');
 
     if (startDate && endDate) {
@@ -647,24 +645,23 @@ export class DocumentoService {
       });
     }
 
-    const [documents,total] = await query
+    const [documents, total] = await query
       .skip((page - 1) * limit)
       .take(limit)
       .getManyAndCount();
 
-    const dataFormatted = documents.map((doc) => (
-      {documentId:doc.id,
-       documentName:doc.name,
-       fileName:doc.fileName,
-       signatures: doc.signatures.map((sig)=>({
-        signatureId:sig.id,
-        signatureType: sig.ownerRut === rut
-        ? ('Titular' as const)
-        :('Subrogante' as const),
-        ownerRut:sig.ownerRut,
-        SignatureStatus: this.evaluateSignatureStatus(doc,rut,sig,delegates),
-       }))
-      }))
+    const dataFormatted = documents.map((doc) => ({
+      documentId: doc.id,
+      documentName: doc.name,
+      fileName: doc.fileName,
+      signatures: doc.signatures.map((sig) => ({
+        signatureId: sig.id,
+        signatureType:
+          sig.ownerRut === rut ? ('Titular' as const) : ('Subrogante' as const),
+        ownerRut: sig.ownerRut,
+        SignatureStatus: this.evaluateSignatureStatus(doc, rut, sig, delegates),
+      })),
+    }));
 
     return {
       data: dataFormatted,
@@ -832,10 +829,17 @@ export class DocumentoService {
    * @returns Promesa que resuelve a la información detallada del documento, incluyendo sus firmas.
    */
   async getInfoDocumentId(id: number) {
-    return await this.documentRepository.findOne({
+    const document = await this.documentRepository.findOne({
       where: { id: id },
       relations: ['signatures'],
     });
+    return {
+      id: document.id,
+      name: document.name,
+      creatorRut: document.creatorRut,
+      date:document.date,
+      isFullySigned: document.isFullySigned,
+    };
   }
   async findFullySigned(
     page: number = 1,

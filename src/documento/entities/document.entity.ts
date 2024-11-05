@@ -1,6 +1,6 @@
 import { Column, DeleteDateColumn, Entity, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 import { DocumentSignature } from "./document-signature.entity";
-import { Attachment } from "../../attachment/entities/attachment .entity";
+import { Attachment } from "../../attachment/entities/attachment.entity";
 
 @Entity({database:'secondConnection'})
 export class Document {
