@@ -88,7 +88,7 @@ export class AuthController {
   }
 
   @Post('/logout')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt-refresh'))
   async logout(@Req() req, @Res({ passthrough: true }) res: Response) {
     try {
       await this.authService.logout(req.user.rut);
@@ -96,8 +96,8 @@ export class AuthController {
       // Solo necesitamos limpiar el refresh token cookie
       res.clearCookie('refresh_token', {
         httpOnly: true,
-        secure: this.configService.get('NODE_ENV') === 'production',
-        sameSite: 'strict',
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
         path: '/',
       });
 

@@ -1,4 +1,4 @@
-import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
+import { Column, DeleteDateColumn, Entity, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import {Document} from "../../documento/entities/document.entity"
 @Entity({ database: 'secondConnection' })
 export class Attachment {
@@ -19,4 +19,7 @@ export class Attachment {
 
   @Column({ nullable: true })
   remoteFilePath: string;
+  
+  @DeleteDateColumn()
+  deleteAt:Date;
 }

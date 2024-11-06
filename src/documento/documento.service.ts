@@ -763,7 +763,7 @@ export class DocumentoService {
   }> {
     rut;
     const delegates = await this.delegateRepository.find({
-      where: { delegateRut: rut, isActive: true, deletedAt: IsNull() },
+      where: { delegateRut: rut, isActive: true },
     });
 
     const ownerRuts = [...new Set([...delegates.map((d) => d.ownerRut), rut])];
@@ -889,31 +889,41 @@ export class DocumentoService {
   }
 
   async deleteDocument(rut: string, idDocument: number) {
-    // Buscar el documento con sus firmas
-    const document = await this.documentRepository.findOne({
-      where: { creatorRut: rut, id: idDocument, deletedAt: IsNull() },
-      relations: ['signatures'],
+    return this.dataSource.transaction(async (transactionManager) => {
+        // Buscar el documento con sus firmas y anexos
+        const document = await transactionManager.findOne(Document, {
+            where: { creatorRut: rut, id: idDocument },
+            relations: ['signatures', 'attachments'],
+        });
+
+        // Verificar si el documento existe
+        if (!document) {
+            throw new NotFoundException('Documento no encontrado');
+        }
+
+        // Verificar si el documento ha sido firmado por un firmador
+        const isSigned = document.signatures.some(
+            (s) => s.isSigned && s.signerType === SignerType.FIRMADOR,
+        );
+
+        if (isSigned) {
+            throw new BadRequestException(
+                'No se puede eliminar un documento que ya ha sido firmado',
+            );
+        }
+
+        // Soft delete de anexos 
+        if (document.attachments.length > 0) {
+            await Promise.all(
+                document.attachments.map((attachment) =>
+                    transactionManager.softDelete(Attachment, attachment.id)
+                )
+            );
+        }
+
+        await transactionManager.softDelete(Document, document.id);
+
+        return { message: 'Documento eliminado exitosamente' };
     });
-
-    // Verificar si el documento existe
-    if (!document) {
-      throw new NotFoundException('Documento no encontrado');
-    }
-
-    // Verificar si el documento ha sido firmado por un firmador
-    const isSigned = document.signatures.some(
-      (s) => s.isSigned && s.signerType === SignerType.FIRMADOR,
-    );
-
-    if (isSigned) {
-      throw new BadRequestException(
-        'No se puede eliminar un documento que ya ha sido firmado',
-      );
-    }
-
-    // hacer softDelete
-    await this.documentRepository.softDelete(document.id);
-
-    return { message: 'Documento eliminado exitosamente' };
-  }
+}
 }

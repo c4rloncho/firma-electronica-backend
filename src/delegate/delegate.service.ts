@@ -25,9 +25,7 @@ export class DelegateService {
    * @returns Una promesa que resuelve a un array de delegados.
    */
   async getDelegates() {
-    const delegates = await this.delegateRepository.find({
-      where: { deletedAt:IsNull() },
-    });
+    const delegates = await this.delegateRepository.find();
     return delegates;
   }
   /**
@@ -54,8 +52,10 @@ export class DelegateService {
           `No se encontró un funcionario con RUT ${ownerRut}`,
         );
       }
-      if(ownerRut === delegateRut){
-        throw new BadRequestException('No puedes seleccionarte a ti mismo como delegado');
+      if (ownerRut === delegateRut) {
+        throw new BadRequestException(
+          'No puedes seleccionarte a ti mismo como delegado',
+        );
       }
 
       if (!delegate) {
@@ -65,7 +65,7 @@ export class DelegateService {
       }
 
       const existingDelegate = await this.delegateRepository.findOne({
-        where: { ownerRut: ownerRut, deletedAt:IsNull() },
+        where: { ownerRut: ownerRut },
       });
 
       if (existingDelegate) {
@@ -108,7 +108,7 @@ export class DelegateService {
       }
     }
   }
- /**
+  /**
    * Realiza un soft delete de un delegado.
    * @param ownerRut rut del titular.
    * @returns Un objeto con el resultado de la operación.
@@ -116,7 +116,7 @@ export class DelegateService {
    */
   async softDeleteDelegate(ownerRut: string) {
     const existingDelegate = await this.delegateRepository.findOne({
-      where: { ownerRut, deletedAt:IsNull() },
+      where: { ownerRut },
     });
 
     if (!existingDelegate) {
@@ -125,9 +125,10 @@ export class DelegateService {
         message: `No se encontró un delegado activo para el RUT ${ownerRut}`,
       });
     }
-    await this.delegateRepository.update(existingDelegate.id, { isActive: false });
-    await this.delegateRepository.softDelete(existingDelegate.id)
-  
+    await this.delegateRepository.update(existingDelegate.id, {
+      isActive: false,
+    });
+    await this.delegateRepository.softDelete(existingDelegate.id);
 
     return {
       success: true,
@@ -141,9 +142,11 @@ export class DelegateService {
    * @throws NotFoundException si no se encuentra el delegado.
    * @throws BadRequestException si el delegado ya está activo.
    */
-  async activateDelegate(ownerRut: string): Promise<{message:string,delegate:Delegate}> {
+  async activateDelegate(
+    ownerRut: string,
+  ): Promise<{ message: string; delegate: Delegate }> {
     const delegate = await this.delegateRepository.findOne({
-      where: { ownerRut, deletedAt:IsNull()},
+      where: { ownerRut },
     });
 
     if (!delegate) {
@@ -157,10 +160,13 @@ export class DelegateService {
     delegate.isActive = true;
     delegate.expiresAt = null;
     const delegateUpdated = await this.delegateRepository.save(delegate);
-    return {message: 'Delegado activado correctamente', delegate: delegateUpdated};
+    return {
+      message: 'Delegado activado correctamente',
+      delegate: delegateUpdated,
+    };
   }
 
-    /**
+  /**
    * Desactiva un delegado.
    * @param ownerRut RUT del titular.
    * @returns El delegado actualizado.
@@ -169,7 +175,7 @@ export class DelegateService {
    */
   async deactivateDelegate(ownerRut: string): Promise<Delegate> {
     const delegate = await this.delegateRepository.findOne({
-      where: { ownerRut,  deletedAt: IsNull() },
+      where: { ownerRut, deletedAt: IsNull() },
     });
 
     if (!delegate) {
@@ -184,20 +190,24 @@ export class DelegateService {
     return await this.delegateRepository.save(delegate);
   }
 
-    /**
+  /**
    * Obtiene un delegado por el RUT del propietario.
    * @param rut RUT del propietario.
    * @returns El delegado encontrado.
    * @throws NotFoundException si no se encuentra el delegado.
    */
-  async getDelegatesRut(rut:string):Promise<Delegate & { nombre: string }>{
-    const delegate = await this.delegateRepository.findOne({where:{ownerRut:rut, deletedAt:IsNull()}})
-   
-    if(!delegate){
-      throw new NotFoundException('delegado no encontrado')
-    }
-    const funcionario = await this.funcionarioRepository.findOne({where:{rut:delegate.delegateRut}})
+  async getDelegatesRut(rut: string): Promise<Delegate & { nombre: string }> {
+    const delegate = await this.delegateRepository.findOne({
+      where: { ownerRut: rut },
+    });
 
-    return {...delegate, nombre: funcionario.nombre};
+    if (!delegate) {
+      throw new NotFoundException('No tienes un delegado');
+    }
+    const funcionario = await this.funcionarioRepository.findOne({
+      where: { rut: delegate.delegateRut },
+    });
+
+    return { ...delegate, nombre: funcionario.nombre };
   }
 }

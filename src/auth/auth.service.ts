@@ -110,8 +110,13 @@ export class AuthService {
 
   async logout(rut: string) {
     try {
+      console.log('Iniciando logout en servicio para rut:', rut);
+      
       await this.funcionarioRepository.update({ rut }, { refreshToken: null });
+      console.log('RefreshToken eliminado exitosamente de la base de datos');
+      
     } catch (error) {
+      console.error('Error en el servicio de logout:', error);
       throw new BadRequestException('Error al cerrar sesión');
     }
   }
