@@ -174,6 +174,7 @@ export class DocumentoService {
           signerOrder: signer.order,
           signerType: signer.type,
           ownerRut: signer.rut,
+          signerName:signer.name,
         });
       }),
     );
@@ -524,7 +525,7 @@ export class DocumentoService {
       creatorRut: string;
       date: Date;
       name: string;
-      isFullysigned: boolean;
+      isFullySigned: boolean;
       attachments: {
         id: number;
         name: string;
@@ -567,7 +568,7 @@ export class DocumentoService {
         creatorRut: doc.creatorRut,
         date: doc.date,
         name: doc.name,
-        isFullysigned: doc.isFullySigned,
+        isFullySigned: doc.isFullySigned,
         attachments: doc.attachments.map((att) => ({
           id: att.id,
           name: att.name,
@@ -828,19 +829,57 @@ export class DocumentoService {
    * @param id ID del documento.
    * @returns Promesa que resuelve a la información detallada del documento, incluyendo sus firmas.
    */
+
   async getInfoDocumentId(id: number) {
-    const document = await this.documentRepository.findOne({
-      where: { id: id },
-      relations: ['signatures'],
-    });
-    return {
-      id: document.id,
-      name: document.name,
-      creatorRut: document.creatorRut,
-      date:document.date,
-      isFullySigned: document.isFullySigned,
-    };
+    try {
+      // Validación del ID
+      if (!id || id < 0) {
+        throw new Error('ID de documento inválido');
+      }
+
+      const document = await this.documentRepository.findOne({
+        where: { id },
+        relations: ['signatures'],
+      });
+
+      // Validar si el documento existe
+      if (!document) {
+        throw new Error(`Documento con ID ${id} no encontrado`);
+      }
+
+      // Validar que signatures no sea null/undefined
+      if (!document.signatures) {
+        throw new Error(`Documento ${id} no tiene la relación de firmas cargada correctamente`);
+      }
+
+      return {
+        id: document.id,
+        name: document.name,
+        creatorRut: document.creatorRut,
+        date: document.date,
+        isFullySigned: document.isFullySigned,
+        signatures: document.signatures.map((sig) => {
+          return {
+            id: sig.id,
+            name: sig.signerName,
+            signedAt: sig.signedAt,
+            signerRut: sig.signerRut,
+            isSigned: sig.isSigned,
+            ownerRut:sig.ownerRut,
+            signerType:sig.signerType,
+          };
+        }),
+      };
+    } catch (error) {
+      // Log del error para debugging
+      console.error(`Error al obtener información del documento ${id}:`, error);
+      
+      // Relanzar el error con un mensaje más amigable
+      throw new Error(`Error al procesar el documento: ${error.message}`);
+    }
   }
+
+
   async findFullySigned(
     page: number = 1,
     limit: number = 10,
@@ -901,9 +940,8 @@ export class DocumentoService {
             throw new NotFoundException('Documento no encontrado');
         }
 
-        // Verificar si el documento ha sido firmado por un firmador
         const isSigned = document.signatures.some(
-            (s) => s.isSigned && s.signerType === SignerType.FIRMADOR,
+            (s) => s.isSigned,
         );
 
         if (isSigned) {

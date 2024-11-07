@@ -5,7 +5,11 @@
       @IsString()
       @IsNotEmpty()
       rut: string;
-    
+      
+      @IsString()
+      @IsNotEmpty()
+      name: string;
+
       @IsNotEmpty()
       @IsNumber()
       order: number;

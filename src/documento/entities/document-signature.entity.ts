@@ -21,6 +21,8 @@ export class DocumentSignature {
   @Column({ nullable: true })
   signerRut: string;
 
+  @Column({ nullable: true })
+  signerName: string;
   // @ManyToOne(() => Delegate, { nullable: true })
   // delegate: Delegate;
 

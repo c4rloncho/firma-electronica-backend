@@ -60,7 +60,6 @@ export class DocumentoController {
         HttpStatus.BAD_REQUEST,
       );
     }
-
     try {
       const document = await this.documentoService.createDocument(
         creatorRut,

@@ -13,7 +13,7 @@ export class Document {
   @Column()
   fileName: string;
 
-  @Column({ type: 'date' })
+  @Column({nullable:true, type: 'timestamp' })
   date: Date;
 
   @DeleteDateColumn()

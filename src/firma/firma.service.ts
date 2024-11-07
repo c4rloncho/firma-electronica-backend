@@ -88,11 +88,12 @@ export class FirmaService {
       token,
       files: [
         {
-          'content-type': 'application/pdf',
-          content: input.documentContent,
-          description: 'Documento para firmar',
-          layout: layout,
+          description: 'descripcion',
           checksum: input.documentChecksum,
+          content: input.documentContent,
+          'content-type': 'application/pdf',
+          layout: layout,
+          
         },
       ],
     };
