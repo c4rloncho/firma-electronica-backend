@@ -17,6 +17,7 @@ import {
   UnauthorizedException,
   HttpCode,
   HttpStatus,
+  Query,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Express } from 'express';
@@ -93,33 +94,22 @@ export class AttachmentController {
   }
 
   @Get(':id')
+  @UseGuards(AuthGuard('jwt'))
   async getAttachment(
+    @Req() req,
+    @Query('action') action: 'view' | 'download',
     @Param('id', ParseIntPipe) id: number,
     @Res() res: Response,
   ) {
     try {
-      const attachment = await this.attachmentService.getAttachment(id);
-      const filePath = join(process.cwd(), attachment.filePath);
+      await this.attachmentService.getById(id, res, action);
 
-      // Verificar si el archivo existe
-      if (!existsSync(filePath)) {
-        throw new NotFoundException(
-          `El archivo ${attachment.fileName} no se encuentra en el servidor.`,
-        );
-      }
-
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader(
-        'Content-Disposition',
-        `inline; filename="${attachment.fileName}"`,
-      );
-      createReadStream(filePath).pipe(res);
     } catch (error) {
-      if (error instanceof BadRequestException) {
-        throw error;
-      } else if (error instanceof NotFoundException) {
-        throw error;
-      } else if (error instanceof InternalServerErrorException) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException ||
+        error instanceof InternalServerErrorException
+      ) {
         throw error;
       } else {
         throw new InternalServerErrorException(

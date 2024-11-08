@@ -1,6 +1,5 @@
-// interfaces/jwt-payload.interface.ts
 interface JwtPayload {
-    sub: string;      // rut del usuario
+    sub: string;      
   }
   
   // refresh-token.strategy.ts

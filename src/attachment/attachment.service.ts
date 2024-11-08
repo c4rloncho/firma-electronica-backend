@@ -5,6 +5,7 @@ import {
   InternalServerErrorException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { Document } from '../documento/entities/document.entity';
@@ -137,21 +138,81 @@ export class AttachmentService {
     return data;
   }
 
-  async getAttachment(id: number) {
-    const attachment = await this.attachmentRepository.findOne({
-      where: { id },
-    });
-    if (!attachment) {
-      throw new NotFoundException(`Anexo con ID ${id} no encontrado`);
-    }
+  private setResponseHeaders(
+    res: Response, 
+    fileName: string, 
+    action: 'view' | 'download'
+  ): void {
+    // Configurar específicamente para PDF
+    res.setHeader('Content-Type', 'application/pdf');
+    
+    // Codificar el nombre del archivo para manejar caracteres especiales
+    const encodedFileName = encodeURIComponent(fileName);
+    
+    // Configurar si es descarga o visualización
+    const disposition = action === 'download' ? 'attachment' : 'inline';
+    res.setHeader(
+      'Content-Disposition',
+      `${disposition}; filename="${encodedFileName}"`
+    );
 
-    const dateObject = new Date(attachment.uploadDate);
-    const documentYear = dateObject.getFullYear().toString();
-    const filePath = `./uploads/${documentYear}/${attachment.fileName}`;
-    return {
-      ...attachment,
-      filePath,
-    };
+    // Headers de seguridad para PDFs
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'private, max-age=3600'); // Cache de 1 hora para PDFs
+  }
+
+  async getById(
+    id: number,
+    res: Response,
+    action: 'view' | 'download' = 'view',
+  ): Promise<void> {
+
+    try {
+      const attachment = await this.attachmentRepository.findOne({
+        where: { id },
+      });
+
+      if (!attachment) {
+        throw new NotFoundException(`Anexo no encontrado con id ${id}`);
+      }
+
+      // Verificar que sea un archivo PDF
+      if (!attachment.fileName.toLowerCase().endsWith('.pdf')) {
+        throw new BadRequestException('El archivo solicitado no es un PDF');
+      }
+
+      const documentYear = new Date(attachment.uploadDate).getFullYear().toString();
+      const remoteFilePath = `/uploads/${documentYear}/${attachment.fileName}`;
+
+      try {
+        const fileStream = await this.remoteStorage.getFileStream(remoteFilePath);
+        
+        this.setResponseHeaders(res, attachment.fileName, action);
+
+        fileStream.on('error', (error) => {
+          throw new InternalServerErrorException(
+            `Error durante la transmisión del PDF: ${error.message}`
+          );
+        });
+
+        fileStream.pipe(res);
+      } catch (streamError) {
+        throw new InternalServerErrorException(
+          `Error al acceder al archivo PDF en el almacenamiento: ${streamError.message}`
+        );
+      }
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException ||
+        error instanceof InternalServerErrorException
+      ) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        `Error al procesar la solicitud del PDF con id ${id}: ${error.message}`
+      );
+    }
   }
 
   async deleteAttachment(rut: string, id: number) {

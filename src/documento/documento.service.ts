@@ -174,7 +174,7 @@ export class DocumentoService {
           signerOrder: signer.order,
           signerType: signer.type,
           ownerRut: signer.rut,
-          signerName:signer.name,
+          signerName: signer.name,
         });
       }),
     );
@@ -439,18 +439,54 @@ export class DocumentoService {
    * @throws BadRequestException si el ID es inválido.
    * @throws NotFoundException si el documento no se encuentra.
    */
+  private async validateAuthorization(
+    document: Document,
+    user: User,
+  ): Promise<void> {
+    if (user.privilegio !== Cargo.ADMIN) {
+      const isAuthorized =
+        document.creatorRut === user.rut ||
+        document.signatures.some(
+          (s) => s.ownerRut === user.rut || s.signerRut === user.rut,
+        );
+
+      if (!isAuthorized) {
+        throw new UnauthorizedException(
+          'No tienes permiso para acceder a este documento',
+        );
+      }
+    }
+  }
+
+  private setResponseHeaders(
+    res: Response,
+    fileName: string,
+    action: 'view' | 'download',
+  ): void {
+    // Configurar específicamente para PDF
+    res.setHeader('Content-Type', 'application/pdf');
+
+    // Codificar el nombre del archivo para manejar caracteres especiales
+    const encodedFileName = encodeURIComponent(fileName);
+
+    // Configurar si es descarga o visualización
+    const disposition = action === 'download' ? 'attachment' : 'inline';
+    res.setHeader(
+      'Content-Disposition',
+      `${disposition}; filename="${encodedFileName}"`,
+    );
+
+    // Headers de seguridad para PDFs
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'private, max-age=3600'); // Cache de 1 hora para PDFs
+  }
+
   async getById(
     id: number,
     user: User,
     res: Response,
     action: 'view' | 'download' = 'view',
-  ) {
-    if (!id || isNaN(id)) {
-      throw new BadRequestException(
-        'ID inválido. Debe ser un número entero positivo.',
-      );
-    }
-
+  ): Promise<void> {
     try {
       const document = await this.documentRepository.findOne({
         where: { id },
@@ -461,53 +497,46 @@ export class DocumentoService {
         throw new NotFoundException(`Documento no encontrado con id ${id}`);
       }
 
-      if (user.privilegio !== Cargo.ADMIN) {
-        const isAuthorized =
-          document.creatorRut === user.rut ||
-          document.signatures.some(
-            (s) => s.ownerRut === user.rut || s.signerRut === user.rut,
-          );
+      // Validar autorización del usuario
+      await this.validateAuthorization(document, user);
 
-        if (!isAuthorized) {
-          throw new UnauthorizedException(
-            'No tienes permiso para acceder a este documento',
-          );
-        }
+      // Verificar que sea un archivo PDF
+      if (!document.fileName.toLowerCase().endsWith('.pdf')) {
+        throw new BadRequestException('El archivo solicitado no es un PDF');
       }
 
-      const dateObject = new Date(document.date);
-      const documentYear = dateObject.getFullYear().toString();
+      const documentYear = new Date(document.date).getFullYear().toString();
       const remoteFilePath = `/uploads/${documentYear}/${document.fileName}`;
 
-      // Obtener el stream del archivo desde el servidor SFTP
-      const fileStream = await this.remoteStorage.getFileStream(remoteFilePath);
+      try {
+        const fileStream =
+          await this.remoteStorage.getFileStream(remoteFilePath);
 
-      // Configurar los headers de la respuesta según la acción
-      res.setHeader('Content-Type', 'application/pdf');
-      if (action === 'download') {
-        res.setHeader(
-          'Content-Disposition',
-          `attachment; filename="${document.fileName}"`,
-        );
-      } else {
-        res.setHeader(
-          'Content-Disposition',
-          `inline; filename="${document.fileName}"`,
+        this.setResponseHeaders(res, document.fileName, action);
+
+        fileStream.on('error', (error) => {
+          throw new InternalServerErrorException(
+            `Error durante la transmisión del PDF: ${error.message}`,
+          );
+        });
+
+        fileStream.pipe(res);
+      } catch (streamError) {
+        throw new InternalServerErrorException(
+          `Error al acceder al archivo PDF en el almacenamiento: ${streamError.message}`,
         );
       }
-
-      // Transmitir el archivo al cliente
-      fileStream.pipe(res);
     } catch (error) {
       if (
         error instanceof NotFoundException ||
         error instanceof UnauthorizedException ||
-        error instanceof BadRequestException
+        error instanceof BadRequestException ||
+        error instanceof InternalServerErrorException
       ) {
         throw error;
       }
       throw new InternalServerErrorException(
-        `Error al buscar o transmitir el documento con id ${id}: ${error.message}`,
+        `Error al procesar la solicitud del documento con id ${id}: ${error.message}`,
       );
     }
   }
@@ -591,6 +620,7 @@ export class DocumentoService {
    * @param documentName Nombre del documento para filtrar.
    * @returns Promesa que resuelve a un objeto con los datos paginados de las firmas pendientes.
    */
+
   async getPendingSignatures(
     rut: string,
     page: number = 1,
@@ -598,136 +628,176 @@ export class DocumentoService {
     startDate?: Date,
     endDate?: Date,
     documentName?: string,
-  ): Promise<{
+): Promise<{
     data: {
-      documentId: number;
-      documentName: string;
-      fileName: string;
-      signatures: {
-        signatureId: number;
-        signatureType: 'Titular' | 'Subrogante';
-        ownerRut: string;
-        SignatureStatus: SignatureStatus;
-      }[];
+        documentId: number;
+        documentName: string;
+        fileName: string;
+        date: Date;
+        signatures: {
+            signatureId: number;
+            signatureType: 'Titular' | 'Subrogante';
+            ownerRut: string;
+            signerType: SignerType;
+            signerOrder: number;
+            isSigned: boolean;
+            signerRut?: string;
+            signerName?: string;
+            signedAt?: Date;
+            SignatureStatus: SignatureStatus;
+        }[];
     }[];
     total: number;
     page: number;
     limit: number;
     totalPages: number;
-  }> {
+}> {
+    // 1. Obtener los RUTs delegados
     const delegates = await this.delegateRepository.find({
-      where: { delegateRut: rut, isActive: true },
+        where: { delegateRut: rut, isActive: true },
     });
 
     const ownerRuts = delegates.map((d) => d.ownerRut);
     ownerRuts.push(rut);
 
-    //busca todos los documentos del funcinoario y a todos a los que delega
-    const query = await this.documentRepository
-      .createQueryBuilder('document')
-      .leftJoinAndSelect('document.signatures', 'signature')
-      .where('signature.ownerRut IN (:...ownerRuts)', { ownerRuts })
-      .andWhere('signature.isSigned = :isSigned', { isSigned: false })
-      .orderBy('document.date', 'DESC');
+    // 2. Construir la query base
+    const query = this.documentRepository
+        .createQueryBuilder('document')
+        .innerJoin(
+            'document.signatures',
+            'pendingSignatures',
+            'pendingSignatures.ownerRut IN (:...ownerRuts) AND pendingSignatures.isSigned = :isSigned',
+            { ownerRuts, isSigned: false }
+        )
+        .leftJoinAndSelect('document.signatures', 'allSignatures')
+        .orderBy('document.date', 'DESC')
+        .addOrderBy('allSignatures.signerOrder', 'ASC');
 
+    // 3. Aplicar filtros adicionales
     if (startDate && endDate) {
-      query.andWhere('document.date BETWEEN :startDate AND :endDate', {
-        startDate,
-        endDate,
-      });
+        query.andWhere('document.date BETWEEN :startDate AND :endDate', {
+            startDate,
+            endDate,
+        });
     } else if (startDate) {
-      query.andWhere('document.date >= :startDate', { startDate });
+        query.andWhere('document.date >= :startDate', { startDate });
     } else if (endDate) {
-      query.andWhere('document.date <= :endDate', { endDate });
+        query.andWhere('document.date <= :endDate', { endDate });
     }
+
     if (documentName) {
-      query.andWhere('document.name ILIKE :nombre', {
-        nombre: `%${documentName}%`,
-      });
+        query.andWhere('document.name ILIKE :nombre', {
+            nombre: `%${documentName}%`,
+        });
     }
 
+    // 4. Obtener resultados paginados
     const [documents, total] = await query
-      .skip((page - 1) * limit)
-      .take(limit)
-      .getManyAndCount();
+        .distinct(true)
+        .skip((page - 1) * limit)
+        .take(limit)
+        .getManyAndCount();
 
-    const dataFormatted = documents.map((doc) => ({
-      documentId: doc.id,
-      documentName: doc.name,
-      fileName: doc.fileName,
-      signatures: doc.signatures.map((sig) => ({
-        signatureId: sig.id,
-        signatureType:
-          sig.ownerRut === rut ? ('Titular' as const) : ('Subrogante' as const),
-        ownerRut: sig.ownerRut,
-        SignatureStatus: this.evaluateSignatureStatus(doc, rut, sig, delegates),
-      })),
-    }));
+    // 5. Formatear la respuesta
+    const dataFormatted = documents.map((doc) => {
+        // Filtrar solo las firmas que el usuario puede realizar
+        const userSignatures = doc.signatures.filter(sig => 
+            ownerRuts.includes(sig.ownerRut)
+        );
+
+        return {
+            documentId: doc.id,
+            documentName: doc.name,
+            fileName: doc.fileName,
+            date: doc.date,
+            signatures: userSignatures.map((sig) => ({
+                signatureId: sig.id,
+                signatureType: sig.ownerRut === rut ? 'Titular' as const : 'Subrogante' as const,
+                ownerRut: sig.ownerRut,
+                signerType: sig.signerType,
+                signerOrder: sig.signerOrder,
+                isSigned: sig.isSigned,
+                signerRut: sig.signerRut,
+                signerName: sig.signerName,
+                signedAt: sig.signedAt,
+                SignatureStatus: this.evaluateSignatureStatus(
+                    rut,
+                    sig,
+                    delegates,
+                    doc.signatures, // Pasamos todas las firmas para la evaluación
+                ),
+            })),
+        };
+    });
 
     return {
-      data: dataFormatted,
-      total: total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
+        data: dataFormatted,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
     };
-  }
+}
 
-  private evaluateSignatureStatus(
-    document: Document,
+private evaluateSignatureStatus(
     rut: string,
     currentSignature: DocumentSignature,
     activeDelegations: Delegate[],
-  ): SignatureStatus {
-    // Verificar si la persona ya ha firmado el documento
-    const alreadySigned = document.signatures.some(
-      (s) => s.signerRut === rut && s.isSigned,
+    allSignatures: DocumentSignature[], // Recibimos todas las firmas del documento
+): SignatureStatus {
+    // 1. Verificar si la persona ya ha firmado el documento
+    const alreadySigned = allSignatures.some(
+        (s) => s.signerRut === rut && s.isSigned
     );
 
     if (alreadySigned) {
-      return SignatureStatus.AlreadySigned;
+        return SignatureStatus.AlreadySigned;
     }
 
-    // Verificar si es un delegado activo para alguna firma pendiente
+    // 2. Verificar si es un delegado activo para alguna firma pendiente
     const canSignAsDelegate = activeDelegations.some((delegation) =>
-      document.signatures.some(
-        (s) => s.ownerRut === delegation.ownerRut && !s.isSigned,
-      ),
+        allSignatures.some(
+            (s) => s.ownerRut === delegation.ownerRut && !s.isSigned
+        )
     );
 
-    // Verificar si es un firmante original y también un delegado activo
+    // 3. Verificar si es un firmante original y también un delegado
     const isDelegateAndOriginalSigner =
-      currentSignature.ownerRut === rut &&
-      canSignAsDelegate &&
-      activeDelegations.some((delegation) =>
-        document.signatures.some(
-          (s) =>
-            s.ownerRut === delegation.ownerRut &&
-            s.ownerRut !== rut &&
-            !s.isSigned,
-        ),
-      );
+        currentSignature.ownerRut === rut &&
+        canSignAsDelegate &&
+        activeDelegations.some((delegation) =>
+            allSignatures.some(
+                (s) =>
+                    s.ownerRut === delegation.ownerRut &&
+                    s.ownerRut !== rut &&
+                    !s.isSigned
+            )
+        );
 
     if (isDelegateAndOriginalSigner) {
-      return SignatureStatus.DelegateConflict;
+        return SignatureStatus.DelegateConflict;
     }
-    document.id, document.signatures;
-    if (this.isMyTurnToSign(document.signatures, currentSignature)) {
-      return SignatureStatus.CanSign;
+
+    // 4. Verificar si es el turno de firmar según el orden de todas las firmas
+    const orderedSignatures = allSignatures
+        .sort((a, b) => a.signerOrder - b.signerOrder);
+    
+    const currentSignatureIndex = orderedSignatures.findIndex(
+        s => s.id === currentSignature.id
+    );
+
+    // Verificar si todas las firmas anteriores están firmadas
+    const allPreviousAreSigned = orderedSignatures
+        .slice(0, currentSignatureIndex)
+        .every(s => s.isSigned);
+
+    if (allPreviousAreSigned && !currentSignature.isSigned) {
+        return SignatureStatus.CanSign;
     }
 
     return SignatureStatus.NotYourTurn;
-  }
+}
 
-  private isMyTurnToSign(
-    signatures: DocumentSignature[],
-    currentSignature: DocumentSignature,
-  ): boolean {
-    const previousSignatures = signatures.filter(
-      (s) => s.signerOrder < currentSignature.signerOrder,
-    );
-    return !previousSignatures.some((s) => !s.isSigned);
-  }
   /**
    * Obtiene todos los documentos asociados a un RUT.
    * @param rut RUT del firmante o delegado.
@@ -849,7 +919,9 @@ export class DocumentoService {
 
       // Validar que signatures no sea null/undefined
       if (!document.signatures) {
-        throw new Error(`Documento ${id} no tiene la relación de firmas cargada correctamente`);
+        throw new Error(
+          `Documento ${id} no tiene la relación de firmas cargada correctamente`,
+        );
       }
 
       return {
@@ -865,20 +937,19 @@ export class DocumentoService {
             signedAt: sig.signedAt,
             signerRut: sig.signerRut,
             isSigned: sig.isSigned,
-            ownerRut:sig.ownerRut,
-            signerType:sig.signerType,
+            ownerRut: sig.ownerRut,
+            signerType: sig.signerType,
           };
         }),
       };
     } catch (error) {
       // Log del error para debugging
       console.error(`Error al obtener información del documento ${id}:`, error);
-      
+
       // Relanzar el error con un mensaje más amigable
       throw new Error(`Error al procesar el documento: ${error.message}`);
     }
   }
-
 
   async findFullySigned(
     page: number = 1,
@@ -929,39 +1000,37 @@ export class DocumentoService {
 
   async deleteDocument(rut: string, idDocument: number) {
     return this.dataSource.transaction(async (transactionManager) => {
-        // Buscar el documento con sus firmas y anexos
-        const document = await transactionManager.findOne(Document, {
-            where: { creatorRut: rut, id: idDocument },
-            relations: ['signatures', 'attachments'],
-        });
+      // Buscar el documento con sus firmas y anexos
+      const document = await transactionManager.findOne(Document, {
+        where: { creatorRut: rut, id: idDocument },
+        relations: ['signatures', 'attachments'],
+      });
 
-        // Verificar si el documento existe
-        if (!document) {
-            throw new NotFoundException('Documento no encontrado');
-        }
+      // Verificar si el documento existe
+      if (!document) {
+        throw new NotFoundException('Documento no encontrado');
+      }
 
-        const isSigned = document.signatures.some(
-            (s) => s.isSigned,
+      const isSigned = document.signatures.some((s) => s.isSigned);
+
+      if (isSigned) {
+        throw new BadRequestException(
+          'No se puede eliminar un documento que ya ha sido firmado',
         );
+      }
 
-        if (isSigned) {
-            throw new BadRequestException(
-                'No se puede eliminar un documento que ya ha sido firmado',
-            );
-        }
+      // Soft delete de anexos
+      if (document.attachments.length > 0) {
+        await Promise.all(
+          document.attachments.map((attachment) =>
+            transactionManager.softDelete(Attachment, attachment.id),
+          ),
+        );
+      }
 
-        // Soft delete de anexos 
-        if (document.attachments.length > 0) {
-            await Promise.all(
-                document.attachments.map((attachment) =>
-                    transactionManager.softDelete(Attachment, attachment.id)
-                )
-            );
-        }
+      await transactionManager.softDelete(Document, document.id);
 
-        await transactionManager.softDelete(Document, document.id);
-
-        return { message: 'Documento eliminado exitosamente' };
+      return { message: 'Documento eliminado exitosamente' };
     });
-}
+  }
 }
