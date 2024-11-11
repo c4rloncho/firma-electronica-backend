@@ -13,10 +13,8 @@ import { RemoteStorageService } from './sftp-storage-service';
 @Module({
   imports: [
     TypeOrmModule.forFeature(
-      [Document, DocumentSignature, Attachment,Delegate],
-      'secondConnection',
+      [Document, DocumentSignature, Attachment,Delegate,Funcionario]
     ),
-    TypeOrmModule.forFeature([Funcionario],'default'),
     FirmaModule,
   ],
   controllers: [DocumentoController],

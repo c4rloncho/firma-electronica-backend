@@ -8,8 +8,7 @@ import { Delegate } from '../delegate/entities/delegado.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Funcionario],'default'),
-    TypeOrmModule.forFeature([Document], 'secondConnection'),
+    TypeOrmModule.forFeature([Funcionario,Document]),
   ],
   controllers: [FuncionarioController],
   providers: [FuncionarioService],

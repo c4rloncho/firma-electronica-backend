@@ -1,6 +1,6 @@
 import { Column, DeleteDateColumn, Entity, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import {Document} from "../../documento/entities/document.entity"
-@Entity({ database: 'secondConnection' })
+@Entity()
 export class Attachment {
   @PrimaryGeneratedColumn()
   id: number;

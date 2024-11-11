@@ -37,11 +37,11 @@ import { extname, join } from 'path';
 import { Funcionario } from 'src/funcionario/entities/funcionario.entity';
 import { Delegate } from 'src/delegate/entities/delegado.entity';
 import { User } from 'src/interfaces/firma.interfaces';
-import { Cargo } from 'src/auth/dto/cargo.enum';
 import { RemoteStorageService } from 'src/documento/sftp-storage-service';
 import { SignatureStatus } from './dto/signature-status.enum';
 import { SignerType } from 'src/enums/signer-type.enum';
 import { Attachment } from 'src/attachment/entities/attachment.entity';
+import { Rol } from 'src/enums/rol.enum';
 
 /**
  * Servicio para manejar operaciones relacionadas con documentos y firmas.
@@ -50,13 +50,15 @@ import { Attachment } from 'src/attachment/entities/attachment.entity';
 export class DocumentoService {
   private readonly logger = new Logger(DocumentoService.name);
   constructor(
-    @InjectRepository(Document, 'secondConnection')
+    @InjectRepository(Document)
     private readonly documentRepository: Repository<Document>,
-    @InjectRepository(Delegate, 'secondConnection')
+    @InjectRepository(Delegate)
     private readonly delegateRepository: Repository<Delegate>,
-    @InjectDataSource('secondConnection')
+    @InjectDataSource()
     private readonly signatureRepository: Repository<DocumentSignature>,
-    @InjectDataSource('secondConnection')
+    @InjectRepository(Funcionario)
+    private readonly funcionarioRepository:Repository<Funcionario>,
+    @InjectDataSource()
     private dataSource: DataSource,
     private firmaService: FirmaService,
     private remoteStorage: RemoteStorageService,
@@ -230,7 +232,10 @@ export class DocumentoService {
             `Documento con el id ${documentId} no encontrado`,
           );
         }
-
+        const funcionario = await this.funcionarioRepository.findOne({where:{rut:run}})
+        if(!funcionario){
+          throw new NotFoundException('funcionario no encontrado')
+        }
         // Verificar si la persona ya ha firmado el documento
         const alreadySigned = document.signatures.some(
           (s) => s.signerRut === run && s.isSigned,
@@ -304,6 +309,7 @@ export class DocumentoService {
               ...input,
               documentContent: content,
               documentChecksum: checksum,
+              funcionario,
             },
             cleanRut,
             imageBuffer,
@@ -320,6 +326,7 @@ export class DocumentoService {
             const allSigned = document.signatures.every((s) => s.isSigned);
             if (allSigned) {
               document.isFullySigned = true;
+              await notifyFuncionario(document);
               await transactionalEntityManager.save(document);
             }
 
@@ -345,6 +352,9 @@ export class DocumentoService {
     }
   }
 
+  private notifyFuncionario(document:Document){
+    document.funcionariosToNotify.map()
+  }
   private cleanRut(rut: string) {
     // Limpia el RUT
     let cleanRut = rut.replace(/[.-]/g, '');
@@ -443,7 +453,7 @@ export class DocumentoService {
     document: Document,
     user: User,
   ): Promise<void> {
-    if (user.privilegio !== Cargo.ADMIN) {
+    if (user.rol !== Rol.ADMIN) {
       const isAuthorized =
         document.creatorRut === user.rut ||
         document.signatures.some(

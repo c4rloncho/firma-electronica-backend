@@ -6,7 +6,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { FuncionarioModule } from './funcionario/funcionario.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DocumentoModule } from './documento/documento.module';
-import config from './database/config';
 import { join } from 'path';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { AttachmentModule } from './attachment/attachment.module';
@@ -14,13 +13,19 @@ import { DelegateController } from './delegate/delegate.controller';
 import { DelegateService } from './delegate/delegate.service';
 import { DelegateModule } from './delegate/delegate.module';
 import { AuthModule } from './auth/auth.module';
+import databaseConfig from './database/config';
+import { TypeDocument } from './type-document/entities/type-document.entity';
+import { TypeDocumentModule } from './type-document/type-document.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forRoot(config[0]),
-    TypeOrmModule.forRoot(config[1]),
     ConfigModule.forRoot({
       isGlobal: true,
+    }),
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: () => databaseConfig,
+      inject: [ConfigService],
     }),
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'uploads'),
@@ -31,6 +36,7 @@ import { AuthModule } from './auth/auth.module';
     AttachmentModule,
     DelegateModule,
     AuthModule,
+    TypeDocumentModule,
   ],
   controllers: [AppController],
   providers: [AppService],

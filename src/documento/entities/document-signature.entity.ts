@@ -4,7 +4,7 @@ import { SignerType } from "src/enums/signer-type.enum";
 
 
 
-@Entity({ database: 'secondConnection' })
+@Entity()
 export class DocumentSignature {
   @PrimaryGeneratedColumn()
   id: number;

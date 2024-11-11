@@ -18,9 +18,10 @@ import { DelegateService } from './delegate.service';
 import { Delegate } from './entities/delegado.entity';
 import { AuthGuard } from '@nestjs/passport';
 import { User } from 'src/interfaces/firma.interfaces';
-import { CargosGuard } from 'src/auth/cargos.guard';
-import { Cargos } from 'src/auth/cargos.decorator';
-import { Cargo } from 'src/auth/dto/cargo.enum';
+import { RolesGuard } from 'src/auth/roles.guard';
+import { Roles } from 'src/auth/roles.decorator';
+import { Rol } from 'src/enums/rol.enum';
+
 
 @Controller('delegates')
 export class DelegateController {
@@ -70,8 +71,8 @@ export class DelegateController {
   }
 
   @Get('get-all')
-  @UseGuards(AuthGuard('jwt'), CargosGuard)
-  @Cargos(Cargo.ADMIN)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(Rol.ADMIN)
   @HttpCode(HttpStatus.OK)
   async getDelegates(): Promise<Delegate[]> {
     return this.delegateService.getDelegates();
@@ -85,4 +86,6 @@ export class DelegateController {
     const user = req.user
     return this.delegateService.getDelegatesRut(user.rut);
   }
+
+  
 }

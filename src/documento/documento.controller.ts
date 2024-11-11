@@ -30,10 +30,10 @@ import { ConfigService } from '@nestjs/config';
 import { createReadStream, existsSync } from 'fs';
 import { Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
-import { CargosGuard } from 'src/auth/cargos.guard';
-import { Cargos } from 'src/auth/cargos.decorator';
-import { Cargo } from 'src/auth/dto/cargo.enum';
 import { User } from 'src/interfaces/firma.interfaces';
+import { Roles } from 'src/auth/roles.decorator';
+import { Rol } from 'src/enums/rol.enum';
+import { RolesGuard } from 'src/auth/roles.guard';
 
 @Controller('document')
 export class DocumentoController {
@@ -115,8 +115,8 @@ export class DocumentoController {
 
   //solo pueden ingresar usuarios con privilegios 'a' Administradores
   @Get('full-signed')
-  @UseGuards(AuthGuard('jwt'), CargosGuard)
-  @Cargos(Cargo.ADMIN)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(Rol.ADMIN)
   async getFullySigned(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,

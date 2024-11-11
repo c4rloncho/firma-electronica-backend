@@ -21,12 +21,12 @@ import { query } from 'express';
 @Injectable()
 export class AttachmentService {
   constructor(
-    @InjectRepository(Attachment, 'secondConnection')
+    @InjectRepository(Attachment)
     private attachmentRepository: Repository<Attachment>,
-    @InjectRepository(Document, 'secondConnection')
+    @InjectRepository(Document)
     private documentRepository: Repository<Document>,
     private remoteStorage: RemoteStorageService,
-    @InjectDataSource('secondConnection')
+    @InjectDataSource()
     private dataSource: DataSource,
   ) {}
 

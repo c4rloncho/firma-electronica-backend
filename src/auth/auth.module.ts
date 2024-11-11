@@ -10,7 +10,7 @@ import { RefreshTokenStrategy } from './refresh-token.strategy';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Funcionario], 'default'),
+    TypeOrmModule.forFeature([Funcionario]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({

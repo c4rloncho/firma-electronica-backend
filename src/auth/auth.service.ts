@@ -26,7 +26,7 @@ export class AuthService {
 
     const funcionario = await this.funcionarioRepository.findOne({
       where: { rut },
-      select: ['rut', 'nombre', 'password', 'Privilegio'], // Especificar campos necesarios
+      select: ['rut', 'nombre', 'password', 'rol'], // Especificar campos necesarios
     });
 
     if (!funcionario) {
@@ -44,7 +44,7 @@ export class AuthService {
   async refreshToken(rut: string, refreshToken: string) {
     const funcionario = await this.funcionarioRepository.findOne({
       where: { rut },
-      select: ['rut', 'nombre', 'Privilegio', 'refreshToken'],
+      select: ['rut', 'nombre', 'rol', 'refreshToken'],
     });
 
     if (!funcionario?.refreshToken) {
@@ -71,7 +71,8 @@ export class AuthService {
     const payload = {
       sub: funcionario.rut,
       nombre: funcionario.nombre,
-      privilegio: funcionario.Privilegio,
+      rol: funcionario.rol,
+    
     };
 
     try {
@@ -99,7 +100,7 @@ export class AuthService {
         user: {
           nombre: funcionario.nombre,
           rut: funcionario.rut,
-          privilegio: funcionario.Privilegio,
+          rol: funcionario.rol,
         },
         refresh_token: refreshToken,
       };

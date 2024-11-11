@@ -30,25 +30,66 @@ export class FirmaService {
   private async createAgileSignerConfig(
     imageBuffer: Express.Multer.File,
     heightImage: number,
-  ) {
+    funcionario: Funcionario,
+    fecha: string
+) {
     const imageBase64 = imageBuffer.buffer.toString('base64');
     const width = 130;
     const height = 80;
     const pageHeight = 1008;
     const pageWidth = 612;
-  
+    
     let yPosition = Math.max(0, Math.min(30, heightImage));
     if (yPosition < 0 || yPosition > 30) {
-      yPosition = 0;
+        yPosition = 0;
     }
     const scaledY = pageHeight - (yPosition / 30) * (pageHeight - height) - height;
     const llx = 20;
     const lly = Math.round(scaledY);
     const urx = llx + width;
     const ury = lly + height;
-  
-    return `<AgileSignerConfig><Application id=\"THIS-CONFIG\"><pdfPassword/><Signature><Visible active=\"true\" layer2=\"false\" label=\"true\" pos=\"1\"><llx>${llx}</llx><lly>${lly}</lly><urx>${urx}</urx><ury>${ury}</ury><page>LAST</page><image>BASE64</image><BASE64VALUE>${imageBase64}</BASE64VALUE></Visible></Signature></Application></AgileSignerConfig>`;
-  }
+    
+    // Texto a la derecha de la imagen
+    const textX = urx + 10;
+
+    return `<AgileSignerConfig>
+        <Application id=\"THIS-CONFIG\">
+            <pdfPassword/>
+            <Signature>
+                <Visible active=\"true\" layer2=\"false\" label=\"true\" pos=\"1\">
+                    <llx>${llx}</llx>
+                    <lly>${lly}</lly>
+                    <urx>${urx}</urx>
+                    <ury>${ury}</ury>
+                    <page>LAST</page>
+                    <image>BASE64</image>
+                    <BASE64VALUE>${imageBase64}</BASE64VALUE>
+                    <Text>
+                        <font>Arial</font>
+                        <size>10</size>
+                        <x>${textX}</x>
+                        <y>${lly + 60}</y>
+                        <text>Firmado por: ${funcionario.nombre}</text>
+                    </Text>
+                    <Text>
+                        <font>Arial</font>
+                        <size>10</size>
+                        <x>${textX}</x>
+                        <y>${lly + 45}</y>
+                        <text>Cargo: ${funcionario.cargo || 'No especificado'}</text>
+                    </Text>
+                    <Text>
+                        <font>Arial</font>
+                        <size>10</size>
+                        <x>${textX}</x>
+                        <y>${lly + 30}</y>
+                        <text>Fecha: ${fecha}</text>
+                    </Text>
+                </Visible>
+            </Signature>
+        </Application>
+    </AgileSignerConfig>`;
+}
   /**
    * Genera un token JWT para la firma del documento.
    * @param input - Datos de entrada para la firma del documento.
@@ -76,13 +117,22 @@ export class FirmaService {
    * @throws HttpException si ocurre un error durante el proceso de firma.
    */
   async signdocument(
-    input: SignDocumentDto & { documentContent: string; documentChecksum: string },
+    input: SignDocumentDto & { documentContent: string; documentChecksum: string; funcionario:Funcionario },
     run:string,
     imageBuffer: Express.Multer.File,
+   
   ) {
+
+    const fecha = new Date().toLocaleDateString('es-CL', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+  });
     const token = this.generateToken(input,run);
     const altura = input.heightImage ? parseInt(input.heightImage.toString(), 10) : 0;
-    const layout = await this.createAgileSignerConfig(imageBuffer, altura);
+    const layout = await this.createAgileSignerConfig(imageBuffer, altura, input.funcionario,fecha);
     const payload = {
       api_token_key: this.configService.get<string>('API_TOKEN_KEY'),
       token,

@@ -8,7 +8,7 @@ import { DocumentoModule } from 'src/documento/documento.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Attachment, Document], 'secondConnection'),
+    TypeOrmModule.forFeature([Attachment, Document]),
     DocumentoModule,
   ],
   controllers: [AttachmentController],

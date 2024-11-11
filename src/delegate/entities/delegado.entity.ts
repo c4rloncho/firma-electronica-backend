@@ -1,6 +1,6 @@
 import { DocumentSignature } from "src/documento/entities/document-signature.entity";
 import { Entity, Column, PrimaryColumn, OneToMany, PrimaryGeneratedColumn, DeleteDateColumn } from "typeorm";
-@Entity({ database: 'secondConnection' })
+@Entity()
 export class Delegate {
   @PrimaryGeneratedColumn()
   id: number;

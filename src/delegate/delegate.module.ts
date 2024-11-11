@@ -8,8 +8,7 @@ import { DocumentSignature } from 'src/documento/entities/document-signature.ent
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Delegate,DocumentSignature], 'secondConnection'),
-    TypeOrmModule.forFeature([Funcionario], 'default'),
+    TypeOrmModule.forFeature([Delegate,DocumentSignature,Funcionario]),
   ],
   controllers: [DelegateController],
   providers: [DelegateService],

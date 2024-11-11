@@ -13,11 +13,11 @@ import { DocumentSignature } from 'src/documento/entities/document-signature.ent
 @Injectable()
 export class DelegateService {
   constructor(
-    @InjectRepository(Delegate, 'secondConnection')
+    @InjectRepository(Delegate)
     private delegateRepository: Repository<Delegate>,
-    @InjectRepository(DocumentSignature, 'secondConnection')
+    @InjectRepository(DocumentSignature)
     private documentSignatureRepository: Repository<DocumentSignature>,
-    @InjectRepository(Funcionario, 'default')
+    @InjectRepository(Funcionario)
     private funcionarioRepository: Repository<Funcionario>,
   ) {}
   /**

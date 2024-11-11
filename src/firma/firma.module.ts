@@ -13,8 +13,7 @@ import { Funcionario } from 'src/funcionario/entities/funcionario.entity';
 @Module({
   imports: [
     HttpModule,
-    TypeOrmModule.forFeature([Document,DocumentSignature],'secondConnection'),
-    TypeOrmModule.forFeature([Funcionario]),
+    TypeOrmModule.forFeature([Document,DocumentSignature,Funcionario]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({

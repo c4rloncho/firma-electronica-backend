@@ -22,7 +22,7 @@ export interface SignResponse {
 export interface User{
   rut:string;
   name:string;
-  privilegio:string;
+  rol:string;
 
 }
 export interface PendingSignature {
