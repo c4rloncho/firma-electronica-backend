@@ -1,6 +1,7 @@
 import { Rol } from 'src/enums/rol.enum';
-import { Entity, Column, PrimaryColumn, ManyToMany, JoinTable } from 'typeorm';
+import { Entity, Column, PrimaryColumn, ManyToMany, JoinTable, OneToMany } from 'typeorm';
 import { Document } from 'src/documento/entities/document.entity';
+import { DocumentView } from 'src/documento/entities/document-visible-users.entity';
 
 @Entity('funcionarios')
 export class Funcionario {
@@ -29,6 +30,6 @@ export class Funcionario {
   @Column({ type: 'varchar', length: 255, nullable: true }) 
   refreshToken?: string;
 
-  @ManyToMany(() => Document, document => document.funcionariosToNotify)
-  notifiedDocuments: Document[];
+  @OneToMany(() => DocumentView, documentView => documentView.funcionario)
+  documentViews:DocumentView[] ;
 }

@@ -9,11 +9,12 @@ import { Attachment } from '../attachment/entities/attachment.entity';
 import { Funcionario } from 'src/funcionario/entities/funcionario.entity';
 import { Delegate } from 'src/delegate/entities/delegado.entity';
 import { RemoteStorageService } from './sftp-storage-service';
+import { DocumentView } from './entities/document-visible-users.entity';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature(
-      [Document, DocumentSignature, Attachment,Delegate,Funcionario]
+      [Document, DocumentSignature, Attachment,Delegate,Funcionario,DocumentView]
     ),
     FirmaModule,
   ],

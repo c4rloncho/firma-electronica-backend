@@ -42,6 +42,7 @@ import { SignatureStatus } from './dto/signature-status.enum';
 import { SignerType } from 'src/enums/signer-type.enum';
 import { Attachment } from 'src/attachment/entities/attachment.entity';
 import { Rol } from 'src/enums/rol.enum';
+import { DocumentView } from './entities/document-visible-users.entity';
 
 /**
  * Servicio para manejar operaciones relacionadas con documentos y firmas.
@@ -57,7 +58,9 @@ export class DocumentoService {
     @InjectDataSource()
     private readonly signatureRepository: Repository<DocumentSignature>,
     @InjectRepository(Funcionario)
-    private readonly funcionarioRepository:Repository<Funcionario>,
+    private readonly funcionarioRepository: Repository<Funcionario>,
+    @InjectRepository(DocumentView)
+    private readonly documentViewRepository: Repository<DocumentView>,
     @InjectDataSource()
     private dataSource: DataSource,
     private firmaService: FirmaService,
@@ -78,7 +81,7 @@ export class DocumentoService {
   ): Promise<Document> {
     return this.documentRepository.manager.transaction(
       async (transactionalEntityManager) => {
-        const { name, signers } = createDocumentDto;
+        const { name, signers, rutsToNotify } = createDocumentDto;
 
         // Verificar RUTs únicos
         this.verifyUniqueRuts(signers);
@@ -95,6 +98,7 @@ export class DocumentoService {
           name,
           randomName,
           creatorRut,
+          rutsToNotify,
         );
 
         // Crear y guardar las firmas
@@ -149,14 +153,39 @@ export class DocumentoService {
     name: string,
     fileName: string,
     creatorRut: string,
+    rutsToNotify: string[],
   ): Promise<Document> {
+    // Crear la instancia del documento
     const document = transactionalEntityManager.create(Document, {
       name,
       fileName,
       creatorRut,
       date: new Date(),
     });
-    return transactionalEntityManager.save(document);
+
+    // Guardar el documento
+    const savedDocument = await transactionalEntityManager.save(document);
+
+    // Buscar funcionarios a notificar
+    const funcionarios = await transactionalEntityManager.find(Funcionario, {
+      where: { rut: In(rutsToNotify) },
+    });
+
+    // Crear y guardar las vistas del documento
+    if (funcionarios && funcionarios.length > 0) {
+      const documentViews = funcionarios.map((funcionario) =>
+        transactionalEntityManager.create(DocumentView, {
+          document: savedDocument,
+          funcionario: funcionario,
+          isVisible: false,
+        }),
+      );
+
+      // Guardar todas las vistas
+      await transactionalEntityManager.save(documentViews);
+    }
+
+    return savedDocument;
   }
 
   private async createAndSaveSignatures(
@@ -225,16 +254,18 @@ export class DocumentoService {
         const { documentId } = input;
         const document = await transactionalEntityManager.findOne(Document, {
           where: { id: documentId },
-          relations: ['signatures'],
+          relations: ['signatures', 'documentViews'],
         });
         if (!document) {
           throw new NotFoundException(
             `Documento con el id ${documentId} no encontrado`,
           );
         }
-        const funcionario = await this.funcionarioRepository.findOne({where:{rut:run}})
-        if(!funcionario){
-          throw new NotFoundException('funcionario no encontrado')
+        const funcionario = await this.funcionarioRepository.findOne({
+          where: { rut: run },
+        });
+        if (!funcionario) {
+          throw new NotFoundException('funcionario no encontrado');
         }
         // Verificar si la persona ya ha firmado el documento
         const alreadySigned = document.signatures.some(
@@ -326,7 +357,7 @@ export class DocumentoService {
             const allSigned = document.signatures.every((s) => s.isSigned);
             if (allSigned) {
               document.isFullySigned = true;
-              await notifyFuncionario(document);
+              await this.notifyFuncionario(document);
               await transactionalEntityManager.save(document);
             }
 
@@ -352,8 +383,11 @@ export class DocumentoService {
     }
   }
 
-  private notifyFuncionario(document:Document){
-    document.funcionariosToNotify.map()
+  private async notifyFuncionario(document: Document) {
+    document.documentViews.forEach((view) => {
+      view.isVisible = true;
+    });
+    await this.documentViewRepository.save(document.documentViews);
   }
   private cleanRut(rut: string) {
     // Limpia el RUT
@@ -638,175 +672,177 @@ export class DocumentoService {
     startDate?: Date,
     endDate?: Date,
     documentName?: string,
-): Promise<{
+  ): Promise<{
     data: {
-        documentId: number;
-        documentName: string;
-        fileName: string;
-        date: Date;
-        signatures: {
-            signatureId: number;
-            signatureType: 'Titular' | 'Subrogante';
-            ownerRut: string;
-            signerType: SignerType;
-            signerOrder: number;
-            isSigned: boolean;
-            signerRut?: string;
-            signerName?: string;
-            signedAt?: Date;
-            SignatureStatus: SignatureStatus;
-        }[];
+      documentId: number;
+      documentName: string;
+      fileName: string;
+      date: Date;
+      signatures: {
+        signatureId: number;
+        signatureType: 'Titular' | 'Subrogante';
+        ownerRut: string;
+        signerType: SignerType;
+        signerOrder: number;
+        isSigned: boolean;
+        signerRut?: string;
+        signerName?: string;
+        signedAt?: Date;
+        SignatureStatus: SignatureStatus;
+      }[];
     }[];
     total: number;
     page: number;
     limit: number;
     totalPages: number;
-}> {
+  }> {
     // 1. Obtener los RUTs delegados
     const delegates = await this.delegateRepository.find({
-        where: { delegateRut: rut, isActive: true },
+      where: { delegateRut: rut, isActive: true },
     });
 
     const ownerRuts = delegates.map((d) => d.ownerRut);
     ownerRuts.push(rut);
 
-    // 2. Construir la query base
     const query = this.documentRepository
-        .createQueryBuilder('document')
-        .innerJoin(
-            'document.signatures',
-            'pendingSignatures',
-            'pendingSignatures.ownerRut IN (:...ownerRuts) AND pendingSignatures.isSigned = :isSigned',
-            { ownerRuts, isSigned: false }
-        )
-        .leftJoinAndSelect('document.signatures', 'allSignatures')
-        .orderBy('document.date', 'DESC')
-        .addOrderBy('allSignatures.signerOrder', 'ASC');
+      .createQueryBuilder('document')
+      .innerJoin(
+        'document.signatures',
+        'pendingSignatures',
+        'pendingSignatures.ownerRut IN (:...ownerRuts) AND pendingSignatures.isSigned = :isSigned',
+        { ownerRuts, isSigned: false },
+      )
+      .leftJoinAndSelect('document.signatures', 'allSignatures')
+      .orderBy('document.date', 'DESC')
+      .addOrderBy('allSignatures.signerOrder', 'ASC');
 
-    // 3. Aplicar filtros adicionales
     if (startDate && endDate) {
-        query.andWhere('document.date BETWEEN :startDate AND :endDate', {
-            startDate,
-            endDate,
-        });
+      query.andWhere('document.date BETWEEN :startDate AND :endDate', {
+        startDate,
+        endDate,
+      });
     } else if (startDate) {
-        query.andWhere('document.date >= :startDate', { startDate });
+      query.andWhere('document.date >= :startDate', { startDate });
     } else if (endDate) {
-        query.andWhere('document.date <= :endDate', { endDate });
+      query.andWhere('document.date <= :endDate', { endDate });
     }
 
     if (documentName) {
-        query.andWhere('document.name ILIKE :nombre', {
-            nombre: `%${documentName}%`,
-        });
+      query.andWhere('document.name ILIKE :nombre', {
+        nombre: `%${documentName}%`,
+      });
     }
 
     // 4. Obtener resultados paginados
     const [documents, total] = await query
-        .distinct(true)
-        .skip((page - 1) * limit)
-        .take(limit)
-        .getManyAndCount();
+      .distinct(true)
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
 
     // 5. Formatear la respuesta
     const dataFormatted = documents.map((doc) => {
-        // Filtrar solo las firmas que el usuario puede realizar
-        const userSignatures = doc.signatures.filter(sig => 
-            ownerRuts.includes(sig.ownerRut)
-        );
+      // Filtrar solo las firmas que el usuario puede realizar
+      const userSignatures = doc.signatures.filter((sig) =>
+        ownerRuts.includes(sig.ownerRut),
+      );
 
-        return {
-            documentId: doc.id,
-            documentName: doc.name,
-            fileName: doc.fileName,
-            date: doc.date,
-            signatures: userSignatures.map((sig) => ({
-                signatureId: sig.id,
-                signatureType: sig.ownerRut === rut ? 'Titular' as const : 'Subrogante' as const,
-                ownerRut: sig.ownerRut,
-                signerType: sig.signerType,
-                signerOrder: sig.signerOrder,
-                isSigned: sig.isSigned,
-                signerRut: sig.signerRut,
-                signerName: sig.signerName,
-                signedAt: sig.signedAt,
-                SignatureStatus: this.evaluateSignatureStatus(
-                    rut,
-                    sig,
-                    delegates,
-                    doc.signatures, // Pasamos todas las firmas para la evaluación
-                ),
-            })),
-        };
+      return {
+        documentId: doc.id,
+        documentName: doc.name,
+        fileName: doc.fileName,
+        date: doc.date,
+        signatures: userSignatures.map((sig) => ({
+          signatureId: sig.id,
+          signatureType:
+            sig.ownerRut === rut
+              ? ('Titular' as const)
+              : ('Subrogante' as const),
+          ownerRut: sig.ownerRut,
+          signerType: sig.signerType,
+          signerOrder: sig.signerOrder,
+          isSigned: sig.isSigned,
+          signerRut: sig.signerRut,
+          signerName: sig.signerName,
+          signedAt: sig.signedAt,
+          SignatureStatus: this.evaluateSignatureStatus(
+            rut,
+            sig,
+            delegates,
+            doc.signatures, // Pasamos todas las firmas para la evaluación
+          ),
+        })),
+      };
     });
 
     return {
-        data: dataFormatted,
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
+      data: dataFormatted,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
     };
-}
+  }
 
-private evaluateSignatureStatus(
+  private evaluateSignatureStatus(
     rut: string,
     currentSignature: DocumentSignature,
     activeDelegations: Delegate[],
     allSignatures: DocumentSignature[], // Recibimos todas las firmas del documento
-): SignatureStatus {
+  ): SignatureStatus {
     // 1. Verificar si la persona ya ha firmado el documento
     const alreadySigned = allSignatures.some(
-        (s) => s.signerRut === rut && s.isSigned
+      (s) => s.signerRut === rut && s.isSigned,
     );
 
     if (alreadySigned) {
-        return SignatureStatus.AlreadySigned;
+      return SignatureStatus.AlreadySigned;
     }
 
     // 2. Verificar si es un delegado activo para alguna firma pendiente
     const canSignAsDelegate = activeDelegations.some((delegation) =>
-        allSignatures.some(
-            (s) => s.ownerRut === delegation.ownerRut && !s.isSigned
-        )
+      allSignatures.some(
+        (s) => s.ownerRut === delegation.ownerRut && !s.isSigned,
+      ),
     );
 
     // 3. Verificar si es un firmante original y también un delegado
     const isDelegateAndOriginalSigner =
-        currentSignature.ownerRut === rut &&
-        canSignAsDelegate &&
-        activeDelegations.some((delegation) =>
-            allSignatures.some(
-                (s) =>
-                    s.ownerRut === delegation.ownerRut &&
-                    s.ownerRut !== rut &&
-                    !s.isSigned
-            )
-        );
+      currentSignature.ownerRut === rut &&
+      canSignAsDelegate &&
+      activeDelegations.some((delegation) =>
+        allSignatures.some(
+          (s) =>
+            s.ownerRut === delegation.ownerRut &&
+            s.ownerRut !== rut &&
+            !s.isSigned,
+        ),
+      );
 
     if (isDelegateAndOriginalSigner) {
-        return SignatureStatus.DelegateConflict;
+      return SignatureStatus.DelegateConflict;
     }
 
     // 4. Verificar si es el turno de firmar según el orden de todas las firmas
-    const orderedSignatures = allSignatures
-        .sort((a, b) => a.signerOrder - b.signerOrder);
-    
+    const orderedSignatures = allSignatures.sort(
+      (a, b) => a.signerOrder - b.signerOrder,
+    );
+
     const currentSignatureIndex = orderedSignatures.findIndex(
-        s => s.id === currentSignature.id
+      (s) => s.id === currentSignature.id,
     );
 
     // Verificar si todas las firmas anteriores están firmadas
     const allPreviousAreSigned = orderedSignatures
-        .slice(0, currentSignatureIndex)
-        .every(s => s.isSigned);
+      .slice(0, currentSignatureIndex)
+      .every((s) => s.isSigned);
 
     if (allPreviousAreSigned && !currentSignature.isSigned) {
-        return SignatureStatus.CanSign;
+      return SignatureStatus.CanSign;
     }
 
     return SignatureStatus.NotYourTurn;
-}
+  }
 
   /**
    * Obtiene todos los documentos asociados a un RUT.
@@ -1043,4 +1079,74 @@ private evaluateSignatureStatus(
       return { message: 'Documento eliminado exitosamente' };
     });
   }
+
+  async getReceivedDocuments(
+    rut: string,
+    page: number,
+    limit: number,
+    name?: string,
+    startDate?: Date,
+    endDate?: Date,
+  ) {
+    const query = this.documentViewRepository
+      .createQueryBuilder('docView')
+      .leftJoinAndSelect('docView.document', 'document')
+      .leftJoinAndSelect('docView.funcionario', 'funcionario')
+      .where('funcionario.rut = :rut', { rut })
+      .andWhere('docView.isVisible = :isVisible', { isVisible: true });
+
+    if (name) {
+      query.andWhere('document.name ILIKE :name', {
+        name: `%${name}%`,
+      });
+    }
+
+    if (startDate) {
+      query.andWhere('document.date >= :startDate', { startDate });
+    }
+
+    if (endDate) {
+      query.andWhere('document.date <= :endDate', { endDate });
+    }
+
+    const [documentsView, total] = await query
+      .orderBy('document.date', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    const formattedData = documentsView.map((view) => {
+      return {
+        documentViewId: view.id,
+        documentId: view.document.id,
+        documentName:view.document.name,
+        documentDate: view.document.date,
+        documentCreatorRut: view.document.creatorRut,
+      };
+    });
+    return {
+      data: formattedData,
+      meta: {
+        total,
+        page,
+        lastPage: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async deleteReceivedDocuments(rut: string, id: number) {
+    const documentView = await this.documentViewRepository.findOne({
+      where: {
+        id,
+        funcionario: { rut }
+      },
+    });
+
+    if (!documentView) {
+      throw new NotFoundException('no tienes permiso para elminar esta notificacion');
+    }
+
+    await this.documentViewRepository.remove(documentView);
+    return { message: 'elemento eliminado correctamente' };
+}
 }

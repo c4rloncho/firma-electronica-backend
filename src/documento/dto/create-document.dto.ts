@@ -7,7 +7,6 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { SignerDto } from './signer.dto';
-import { Funcionario } from 'src/funcionario/entities/funcionario.entity';
 
 export class CreateDocumentDto {
   @IsString()

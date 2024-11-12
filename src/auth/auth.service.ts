@@ -11,7 +11,7 @@ import { LoginDto } from './dto/login.dto';
 import { MD5 } from 'crypto-js';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-
+import * as bcrypt from 'bcrypt';
 @Injectable()
 export class AuthService {
   constructor(
@@ -33,8 +33,8 @@ export class AuthService {
       throw new NotFoundException('Funcionario no encontrado');
     }
 
-    const hashedPassword = MD5(password).toString();
-    if (hashedPassword !== funcionario.password) {
+    const isValid = await bcrypt.compare(input.password,funcionario.password);
+    if (!isValid) {
       throw new UnauthorizedException('Credenciales inválidas');
     }
 

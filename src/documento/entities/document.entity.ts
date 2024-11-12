@@ -3,6 +3,7 @@
   import { Attachment } from "../../attachment/entities/attachment.entity";
   import { TypeDocument } from "src/type-document/entities/type-document.entity";
   import { Funcionario } from "src/funcionario/entities/funcionario.entity";
+import { DocumentView } from "./document-visible-users.entity";
 
   @Entity()
   export class Document {
@@ -35,6 +36,9 @@
 
     @ManyToOne(()=> TypeDocument, typedocument => typedocument.documents)
     typeDocument:TypeDocument;
+
+    @OneToMany(()=>DocumentView, documentView => documentView.document)
+    documentViews: DocumentView[];
 
 
   }

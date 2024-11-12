@@ -48,39 +48,38 @@ export class DocumentoController {
   @UseInterceptors(FileInterceptor('file'))
   async createDocument(
     @Req() req,
-    @Body('createDocumentDto') createDocumentDto: string,
+    @Body() createDocumentDto: CreateDocumentDto, // Ya no necesitas parsearlo
     @UploadedFile() file: Express.Multer.File,
   ) {
-    console.log(createDocumentDto)
-    const createDocumentParsed: CreateDocumentDto = JSON.parse(createDocumentDto);
-    const creatorRut = req.user.rut;
-    if (!file) {
-      throw new HttpException(
-        'No se ha proporcionado ningún archivo',
-        HttpStatus.BAD_REQUEST,
-      );
-    }
     try {
+      const creatorRut = req.user.rut;
+      if (!file) {
+        throw new HttpException(
+          'No se ha proporcionado ningún archivo',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      // Ahora createDocumentDto ya está transformado y validado gracias a class-transformer y class-validator
       const document = await this.documentoService.createDocument(
         creatorRut,
-        createDocumentParsed,
+        createDocumentDto,
         file,
       );
+
       return {
         message: 'Documento creado exitosamente',
         document,
       };
     } catch (error) {
       console.error('Error al crear el documento:', error);
-
       if (error.message.includes('Failed to save file')) {
         throw new HttpException(
           'Error al guardar el archivo',
           HttpStatus.INTERNAL_SERVER_ERROR,
         );
-      } else {
-        throw error;
       }
+      throw error;
     }
   }
 
@@ -241,24 +240,24 @@ export class DocumentoController {
       );
     }
   }
-    @Get('created-by-me')
-    @UseGuards(AuthGuard('jwt'))
-    async getDocumentCreatedByMe(
-      @Req() req,
-      @Query('page', ParseIntPipe, new DefaultValuePipe(1)) page: number,
-      @Query('limit', ParseIntPipe, new DefaultValuePipe(10)) limit: number,
-      @Query('name') name?: string,
-      @Query('startDate') startDate?: string,
-      @Query('endDate') endDate?: string,
-    ) {
-    const rut = req.user.rut
+  @Get('created-by-me')
+  @UseGuards(AuthGuard('jwt'))
+  async getDocumentCreatedByMe(
+    @Req() req,
+    @Query('page', ParseIntPipe, new DefaultValuePipe(1)) page: number,
+    @Query('limit', ParseIntPipe, new DefaultValuePipe(10)) limit: number,
+    @Query('name') name?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    const rut = req.user.rut;
     const result = await this.documentoService.getMyCreatedDocument(
       rut,
       page,
       limit,
       name,
-      startDate? new Date(startDate): undefined,
-      endDate? new Date(endDate):undefined,
+      startDate ? new Date(startDate) : undefined,
+      endDate ? new Date(endDate) : undefined,
     );
     return result;
   }
@@ -287,5 +286,37 @@ export class DocumentoController {
         );
       }
     }
+  }
+
+  @Get('/signed-documents/received')
+  @UseGuards(AuthGuard('jwt'))
+  async getReceivedDocuments(
+    @Req() req,
+    @Query('page', ParseIntPipe, new DefaultValuePipe(1)) page: number,
+    @Query('limit', ParseIntPipe, new DefaultValuePipe(10)) limit: number,
+    @Query('name') name?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    const { rut } = req.user;
+    const result = await this.documentoService.getReceivedDocuments(
+      rut,
+      page,
+      limit,
+      name,
+      startDate ? new Date(startDate) : undefined,
+      endDate ? new Date(endDate) : undefined,
+    );
+    return result;
+  }
+
+  @Delete('/signed-document/received/:id')
+  @UseGuards(AuthGuard('jwt'))
+  async deleteReceivedDocument(
+    @Req() req,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    const { rut } = req.user;
+    return await this.documentoService.deleteReceivedDocuments(rut,id)
   }
 }

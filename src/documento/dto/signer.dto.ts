@@ -1,4 +1,5 @@
-  import { IsEnum, IsNotEmpty, IsNumber, IsString } from "class-validator";
+  import { Type } from "class-transformer";
+import { IsEnum, IsNotEmpty, IsNumber, IsString } from "class-validator";
   import { SignerType } from "src/enums/signer-type.enum";
 
   export class SignerDto {
@@ -11,6 +12,7 @@
       name: string;
 
       @IsNotEmpty()
+      @Type(() => Number)
       @IsNumber()
       order: number;
 

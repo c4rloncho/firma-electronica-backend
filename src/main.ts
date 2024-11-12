@@ -20,7 +20,7 @@ async function bootstrap() {
   app.enableCors(corsOptions);
 
   app.use(cookieParser());
-  app.useGlobalPipes(new ValidationPipe());
+  app.useGlobalPipes(new ValidationPipe({transform: true,}));
   app.use(express.json()); // Para JSON
   app.use(express.urlencoded({ extended: true })); 
 
