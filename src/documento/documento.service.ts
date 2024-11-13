@@ -201,7 +201,7 @@ export class DocumentoService {
         });
         return transactionalEntityManager.create(DocumentSignature, {
           document,
-          signerRut: null, //se pondra el rut de la persona que firme el documento
+          signerRut: null, //se pondrá el rut de la persona que firme el documento
           signerOrder: signer.order,
           signerType: signer.type,
           ownerRut: signer.rut,
@@ -373,7 +373,7 @@ export class DocumentoService {
           }
         } catch (error) {
           throw new BadRequestException(
-            `Error al firmar el documentoo: ${error.message}`,
+            `Error al firmar el documento: ${error.message}`,
           );
         }
       });
@@ -1143,7 +1143,7 @@ export class DocumentoService {
     });
 
     if (!documentView) {
-      throw new NotFoundException('no tienes permiso para elminar esta notificacion');
+      throw new NotFoundException('no tienes permiso para eliminar esta notificación');
     }
 
     await this.documentViewRepository.remove(documentView);

@@ -50,7 +50,7 @@ export class FuncionarioService {
 
       // Crear el funcionario
       const funcionario = this.funcionarioRepository.create({
-        rol: Rol.USER,
+        rol: input.rol,
         cargo: input.cargo,
         activo: true,
         nombre: input.name,

@@ -29,13 +29,13 @@ export class FuncionarioController {
   constructor(private readonly funcionarioService: FuncionarioService) {}
  
 
-  @Post('register')
-  @Roles(Rol.ADMIN)
-  @UseGuards(AuthGuard('jwt'),RolesGuard)
-  async registerFuncionario(@Req() req,
-  @Body('registerFuncionariotDto')input:RegisterFuncionarioDto ){
-    return await this.funcionarioService.registerFuncionario(input)
-  }
+    @Post('register')
+    @Roles(Rol.ADMIN)
+    @UseGuards(AuthGuard('jwt'),RolesGuard)
+    async registerFuncionario(@Req() req,
+    @Body()input:RegisterFuncionarioDto ){
+      return await this.funcionarioService.registerFuncionario(input)
+    }
 
   //get info de un usuario 
   @Get('buscar')
