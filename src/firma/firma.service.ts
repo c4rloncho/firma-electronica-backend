@@ -17,7 +17,7 @@ import { SignDocumentDto } from 'src/documento/dto/sign-document.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Funcionario } from 'src/funcionario/entities/funcionario.entity';
-
+import * as sharp from 'sharp';
 @Injectable()
 export class FirmaService {
   constructor(
@@ -37,8 +37,13 @@ export class FirmaService {
     funcionario: Funcionario,
     fecha: string,
   ) {
-    const { cargo, rut, nombre } = funcionario;
-    const imageBase64 = imageBuffer.buffer.toString('base64');
+
+    const imageWithText = await this.addTextToImage(
+      imageBuffer.buffer,
+      fecha,
+      funcionario
+    );
+    const imageBase64 = imageWithText.toString('base64');
     const width = 130;
     const height = 80;
     const pageHeight = 1008;
@@ -71,6 +76,41 @@ export class FirmaService {
         </Application>
     </AgileSignerConfig>`;
   }
+
+  async addTextToImage(
+    imageBuffer: Buffer,
+    text: string,
+    funcionario: Funcionario
+  ): Promise<Buffer> {
+    console.log('Iniciando addTextToImage');
+    console.log('imageBuffer type:', typeof imageBuffer);
+    
+    const svgText = `
+      <svg width="130" height="80">
+        <style>.text { font: 10px sans-serif; fill: black; }</style>
+        <text x="5" y="15" class="text">${funcionario.nombre}</text>
+        <text x="5" y="30" class="text">${funcionario.cargo}</text>
+        <text x="5" y="45" class="text">RUT: ${funcionario.rut}</text>
+        <text x="5" y="60" class="text">${text}</text>
+      </svg>
+    `;
+    console.log('SVG generado:', svgText);
+
+    try {
+      console.log('Intentando procesar imagen con sharp');
+      return await sharp(imageBuffer)
+        .composite([{
+          input: Buffer.from(svgText),
+          top: 0,
+          left: 0
+        }])
+        .toBuffer();
+    } catch (error) {
+      console.error('Error procesando imagen:', error);
+      throw error;
+    }
+  }
+  
   /**
    * Genera un token JWT para la firma del documento.
    * @param input - Datos de entrada para la firma del documento.
