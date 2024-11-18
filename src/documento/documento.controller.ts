@@ -48,10 +48,11 @@ export class DocumentoController {
   @UseInterceptors(FileInterceptor('file'))
   async createDocument(
     @Req() req,
-    @Body() createDocumentDto: CreateDocumentDto, // Ya no necesitas parsearlo
+    @Body('createDocumentDto') createDocumentDtoString: string, 
     @UploadedFile() file: Express.Multer.File,
   ) {
     try {
+      const createDocumentDto = JSON.parse(createDocumentDtoString)
       const creatorRut = req.user.rut;
       if (!file) {
         throw new HttpException(

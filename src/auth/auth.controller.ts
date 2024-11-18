@@ -47,12 +47,12 @@ export class AuthController {
       // Devolver el access token en el body para que el frontend lo maneje
       return {
         message: 'Login successful',
-        access_token, // El frontend lo guardará en memoria o localStorage
+        access_token, 
         user,
       };
     } catch (error) {
       if (error instanceof UnauthorizedException) {
-        throw new HttpException('Invalid credentials', HttpStatus.UNAUTHORIZED);
+        throw new HttpException(error?.message, HttpStatus.UNAUTHORIZED);
       }
 
       if (error instanceof BadRequestException) {
@@ -60,7 +60,7 @@ export class AuthController {
       }
 
       if (error instanceof NotFoundException) {
-        throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+        throw new HttpException(error?.message, HttpStatus.NOT_FOUND);
       }
 
       throw new HttpException(

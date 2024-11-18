@@ -1,4 +1,10 @@
-import { BadRequestException, HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  HttpException,
+  HttpStatus,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as crypto from 'crypto';
 import { lastValueFrom, NotFoundError } from 'rxjs';
@@ -18,8 +24,6 @@ export class FirmaService {
     private readonly jwtService: JwtService,
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
-
-
   ) {}
   /**
    * Crea la configuración para AgileSigner.
@@ -31,26 +35,24 @@ export class FirmaService {
     imageBuffer: Express.Multer.File,
     heightImage: number,
     funcionario: Funcionario,
-    fecha: string
-) {
+    fecha: string,
+  ) {
+    const { cargo, rut, nombre } = funcionario;
     const imageBase64 = imageBuffer.buffer.toString('base64');
     const width = 130;
     const height = 80;
     const pageHeight = 1008;
-    const pageWidth = 612;
-    
+
     let yPosition = Math.max(0, Math.min(30, heightImage));
     if (yPosition < 0 || yPosition > 30) {
-        yPosition = 0;
+      yPosition = 0;
     }
-    const scaledY = pageHeight - (yPosition / 30) * (pageHeight - height) - height;
+    const scaledY =
+      pageHeight - (yPosition / 30) * (pageHeight - height) - height;
     const llx = 20;
     const lly = Math.round(scaledY);
     const urx = llx + width;
     const ury = lly + height;
-    
-    // Texto a la derecha de la imagen
-    const textX = urx + 10;
 
     return `<AgileSignerConfig>
         <Application id=\"THIS-CONFIG\">
@@ -64,51 +66,34 @@ export class FirmaService {
                     <page>LAST</page>
                     <image>BASE64</image>
                     <BASE64VALUE>${imageBase64}</BASE64VALUE>
-                    <Text>
-                        <font>Arial</font>
-                        <size>10</size>
-                        <x>${textX}</x>
-                        <y>${lly + 60}</y>
-                        <text>Firmado por: ${funcionario.nombre}</text>
-                    </Text>
-                    <Text>
-                        <font>Arial</font>
-                        <size>10</size>
-                        <x>${textX}</x>
-                        <y>${lly + 45}</y>
-                        <text>Cargo: ${funcionario.cargo || 'No especificado'}</text>
-                    </Text>
-                    <Text>
-                        <font>Arial</font>
-                        <size>10</size>
-                        <x>${textX}</x>
-                        <y>${lly + 30}</y>
-                        <text>Fecha: ${fecha}</text>
-                    </Text>
                 </Visible>
             </Signature>
         </Application>
     </AgileSignerConfig>`;
-}
+  }
   /**
    * Genera un token JWT para la firma del documento.
    * @param input - Datos de entrada para la firma del documento.
    * @returns Token JWT generado.
    */
-  private generateToken(input: SignDocumentDto,run:string) {
+  private generateToken(input: SignDocumentDto, run: string) {
     const now = new Date();
     const expirationDate = new Date(now.getTime() + 30 * 60 * 1000);
     const formattedExpiration = expirationDate
       .toLocaleString('sv', { timeZone: 'America/Santiago' })
       .replace(' ', 'T');
 
-    return this.jwtService.sign({
-      run: run,
-      entity: input.entity,
-      purpose: input.purpose,
-      expiration: formattedExpiration,
-    });
+    return this.jwtService.sign(
+      {
+        run: run,
+        entity: input.entity,
+        purpose: input.purpose,
+        expiration: formattedExpiration,
+      },
+ 
+    );
   }
+
   /**
    * Firma un documento utilizando api de firmagob firma digital.
    * @param input - Datos de entrada para la firma del documento, incluyendo el contenido  y el checksum.
@@ -117,22 +102,31 @@ export class FirmaService {
    * @throws HttpException si ocurre un error durante el proceso de firma.
    */
   async signdocument(
-    input: SignDocumentDto & { documentContent: string; documentChecksum: string; funcionario:Funcionario },
-    run:string,
+    input: SignDocumentDto & {
+      documentContent: string;
+      documentChecksum: string;
+      funcionario: Funcionario;
+    },
+    run: string,
     imageBuffer: Express.Multer.File,
-   
   ) {
-
     const fecha = new Date().toLocaleDateString('es-CL', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
-  });
-    const token = this.generateToken(input,run);
-    const altura = input.heightImage ? parseInt(input.heightImage.toString(), 10) : 0;
-    const layout = await this.createAgileSignerConfig(imageBuffer, altura, input.funcionario,fecha);
+      minute: '2-digit',
+    });
+    const token = this.generateToken(input, run);
+    const altura = input.heightImage
+      ? parseInt(input.heightImage.toString(), 10)
+      : 0;
+    const layout = await this.createAgileSignerConfig(
+      imageBuffer,
+      altura,
+      input.funcionario,
+      fecha,
+    );
     const payload = {
       api_token_key: this.configService.get<string>('API_TOKEN_KEY'),
       token,
@@ -143,10 +137,10 @@ export class FirmaService {
           content: input.documentContent,
           'content-type': 'application/pdf',
           layout: layout,
-          
         },
       ],
     };
+    console.log(token)
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
@@ -158,19 +152,19 @@ export class FirmaService {
       url: this.configService.get<string>('API_URL'),
       method: 'POST',
       headers: headers,
-      body: payload
-  };
+      body: payload,
+    };
     // Guardar en archivo JSON
     fs1.writeFileSync('request-log.json', JSON.stringify(requestInfo, null, 2));
 
     // Guardar en archivo TXT
     fs1.writeFileSync(
-        'request-log.txt',
-        `Request a API externa:\n` +
+      'request-log.txt',
+      `Request a API externa:\n` +
         `URL: ${requestInfo.url}\n` +
         `Method: ${requestInfo.method}\n` +
         `Headers: ${JSON.stringify(headers, null, 2)}\n` +
-        `Body: ${JSON.stringify(payload, null, 2)}`
+        `Body: ${JSON.stringify(payload, null, 2)}`,
     );
     try {
       const response = await lastValueFrom(
@@ -191,7 +185,7 @@ export class FirmaService {
         error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
-  }  
+  }
   /**
    * Procesa la respuesta del servicio de firma digital.
    * @param responseData - Datos de respuesta del servicio de firma.
@@ -211,7 +205,10 @@ export class FirmaService {
     idSolicitud: number;
   } {
     if (!responseData.files || !Array.isArray(responseData.files)) {
-      throw new HttpException('Respuesta inválida del servicio de firma', HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        'Respuesta inválida del servicio de firma',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const signedFiles = responseData.files.map((file) => ({
@@ -229,7 +226,4 @@ export class FirmaService {
       idSolicitud: responseData.idSolicitud,
     };
   }
-
-
-
 }
