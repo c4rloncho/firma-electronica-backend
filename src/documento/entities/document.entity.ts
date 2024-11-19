@@ -25,6 +25,9 @@ import { DocumentView } from "./document-visible-users.entity";
     @Column({nullable:true})
     creatorRut:string;
 
+    @Column({nullable:true})
+    heightSigns:number;
+
     @OneToMany(() => DocumentSignature, signature => signature.document)
     signatures: DocumentSignature[];
 

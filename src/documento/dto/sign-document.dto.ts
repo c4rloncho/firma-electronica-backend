@@ -14,7 +14,9 @@ export class SignDocumentDto {
 
     @IsBoolean()
     @IsNotEmpty()
-    @Type(()=>Boolean)
+    @Transform(({ value }) => {
+        return value === 'true';
+    })
     isAttended: boolean;
     
     @IsInt()
@@ -22,10 +24,6 @@ export class SignDocumentDto {
     @Type(() => Number)
     documentId: number;
 
-    @IsNumber()
-    @IsOptional()
-    @Type(() => Number)
-    heightImage?: number;
 
     @IsString()
     @IsOptional()

@@ -3,6 +3,8 @@ import {
   ArrayMinSize,
   IsArray,
   IsNotEmpty,
+  IsNumber,
+  IsOptional,
   IsString,
   ValidateNested,
 } from 'class-validator';
@@ -21,4 +23,10 @@ export class CreateDocumentDto {
 
   @IsArray()
   rutsToNotify: string[];
+
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  heightSigns: number = 30;
 }

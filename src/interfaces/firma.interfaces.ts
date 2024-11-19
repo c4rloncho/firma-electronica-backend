@@ -41,3 +41,15 @@ export interface SignatureEvent {
   checksum: string;
   timestamp: Date;
 }
+export interface SignatureConfig {
+  width: number;
+  height: number;
+  padding: number;
+  fontSize: {
+    nombre: number;
+    cargo: number;
+    rut: number;
+    fecha: number;
+  };
+  lineHeight: number;
+}

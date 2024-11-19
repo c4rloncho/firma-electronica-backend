@@ -81,7 +81,7 @@ export class DocumentoService {
   ): Promise<Document> {
     return this.documentRepository.manager.transaction(
       async (transactionalEntityManager) => {
-        const { name, signers, rutsToNotify } = createDocumentDto;
+        const { name, signers, rutsToNotify,heightSigns } = createDocumentDto;
 
         // Verificar RUTs únicos
         this.verifyUniqueRuts(signers);
@@ -99,6 +99,7 @@ export class DocumentoService {
           randomName,
           creatorRut,
           rutsToNotify,
+          heightSigns,
         );
 
         // Crear y guardar las firmas
@@ -154,6 +155,7 @@ export class DocumentoService {
     fileName: string,
     creatorRut: string,
     rutsToNotify: string[],
+    heightSigns:number,
   ): Promise<Document> {
     // Crear la instancia del documento
     const document = transactionalEntityManager.create(Document, {
@@ -161,6 +163,7 @@ export class DocumentoService {
       fileName,
       creatorRut,
       date: new Date(),
+      heightSigns
     });
 
     // Guardar el documento
@@ -341,7 +344,9 @@ export class DocumentoService {
               documentContent: content,
               documentChecksum: checksum,
               funcionario,
+              heightImage:document.heightSigns,
             },
+            pendingSignature.signerOrder,
             cleanRut,
             imageBuffer,
           );
@@ -1119,7 +1124,7 @@ export class DocumentoService {
       return {
         documentViewId: view.id,
         documentId: view.document.id,
-        documentName: view.document.name,
+        documentName:view.document.name,
         documentDate: view.document.date,
         documentCreatorRut: view.document.creatorRut,
       };
@@ -1138,17 +1143,15 @@ export class DocumentoService {
     const documentView = await this.documentViewRepository.findOne({
       where: {
         id,
-        funcionario: { rut },
+        funcionario: { rut }
       },
     });
 
     if (!documentView) {
-      throw new NotFoundException(
-        'no tienes permiso para eliminar esta notificación',
-      );
+      throw new NotFoundException('no tienes permiso para eliminar esta notificación');
     }
 
     await this.documentViewRepository.remove(documentView);
     return { message: 'elemento eliminado correctamente' };
-  }
+}
 }

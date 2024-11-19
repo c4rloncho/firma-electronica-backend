@@ -34,6 +34,7 @@ import { User } from 'src/interfaces/firma.interfaces';
 import { Roles } from 'src/auth/roles.decorator';
 import { Rol } from 'src/enums/rol.enum';
 import { RolesGuard } from 'src/auth/roles.guard';
+import { sign } from 'crypto';
 
 @Controller('document')
 export class DocumentoController {
@@ -52,6 +53,7 @@ export class DocumentoController {
     @UploadedFile() file: Express.Multer.File,
   ) {
     try {
+
       const createDocumentDto = JSON.parse(createDocumentDtoString)
       const creatorRut = req.user.rut;
       if (!file) {
@@ -60,8 +62,6 @@ export class DocumentoController {
           HttpStatus.BAD_REQUEST,
         );
       }
-
-      // Ahora createDocumentDto ya está transformado y validado gracias a class-transformer y class-validator
       const document = await this.documentoService.createDocument(
         creatorRut,
         createDocumentDto,
