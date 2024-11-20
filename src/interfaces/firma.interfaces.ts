@@ -53,3 +53,11 @@ export interface SignatureConfig {
   };
   lineHeight: number;
 }
+
+export interface SignaturePosition {
+  llx: number;
+  lly: number;
+  urx: number;
+  ury: number;
+  page: number;
+}

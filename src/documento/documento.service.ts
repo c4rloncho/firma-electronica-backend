@@ -332,19 +332,19 @@ export class DocumentoService {
         try {
           const dateObject = new Date(document.date);
           const documentYear = dateObject.getFullYear().toString();
-          const { content, checksum } = await this.prepareFile(
+          const { fileBuffer, checksum } = await this.prepareFile(
             document.fileName,
             documentYear,
           );
-          //limpieza y transformacion de run que pide la api
+          
           const cleanRut = this.cleanRut(run);
           const firmaResult = await this.firmaService.signdocument(
             {
               ...input,
-              documentContent: content,
+              documentBuffer: fileBuffer, // Cambio aquí: enviamos el buffer en lugar del base64
               documentChecksum: checksum,
               funcionario,
-              heightImage:document.heightSigns,
+              heightImage: document.heightSigns,
             },
             pendingSignature.signerOrder,
             cleanRut,
@@ -403,6 +403,39 @@ export class DocumentoService {
     return cleanRut;
   }
 
+
+ 
+  async prepareFile(
+    fileName: string,
+    year: string,
+): Promise<{ fileBuffer: Buffer; checksum: string }> {
+    const remotePath = `/uploads/${year}/${fileName}`;
+    try {
+      const fileStream = await this.remoteStorage.getFileStream(remotePath);
+
+      return new Promise((resolve, reject) => {
+        const chunks: Buffer[] = [];
+
+        fileStream.on('data', (chunk) => chunks.push(chunk));
+        fileStream.on('end', () => {
+          const fileBuffer = Buffer.concat(chunks);
+          const checksum = this.calculateChecksum(fileBuffer);
+          resolve({ fileBuffer, checksum });
+        });
+        fileStream.on('error', (error) => {
+          reject(
+            new Error(`Error al leer el archivo remoto: ${error.message}`),
+          );
+        });
+      });
+    } catch (error) {
+      throw new Error(`Error al preparar el archivo remoto: ${error.message}`);
+    }
+}
+
+  private calculateChecksum(buffer: Buffer): string {
+    return crypto.createHash('sha256').update(buffer).digest('hex');
+  }
   private async saveSignedFile(
     signedFile: { content: Buffer; checksum: string },
     document: Document,
@@ -420,7 +453,6 @@ export class DocumentoService {
       throw error;
     }
   }
-
   private validateSignatureOrder(
     signatures: DocumentSignature[],
     currentSignature: DocumentSignature,
@@ -448,39 +480,6 @@ export class DocumentoService {
       }
     }
   }
-  async prepareFile(
-    fileName: string,
-    year: string,
-  ): Promise<{ content: string; checksum: string }> {
-    const remotePath = `/uploads/${year}/${fileName}`;
-    try {
-      const fileStream = await this.remoteStorage.getFileStream(remotePath);
-
-      return new Promise((resolve, reject) => {
-        const chunks: Buffer[] = [];
-
-        fileStream.on('data', (chunk) => chunks.push(chunk));
-        fileStream.on('end', () => {
-          const fileBuffer = Buffer.concat(chunks);
-          const content = fileBuffer.toString('base64');
-          const checksum = this.calculateChecksum(fileBuffer);
-          resolve({ content, checksum });
-        });
-        fileStream.on('error', (error) => {
-          reject(
-            new Error(`Error al leer el archivo remoto: ${error.message}`),
-          );
-        });
-      });
-    } catch (error) {
-      throw new Error(`Error al preparar el archivo remoto: ${error.message}`);
-    }
-  }
-
-  private calculateChecksum(buffer: Buffer): string {
-    return crypto.createHash('sha256').update(buffer).digest('hex');
-  }
-
   /**
    * Obtiene un documento por su ID.
    * @param id ID del documento.

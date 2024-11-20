@@ -12,13 +12,14 @@ import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs/promises';
 import * as fs1 from 'fs';
-import { SignResponse, SignedFile } from 'src/interfaces/firma.interfaces';
+import { SignResponse, SignaturePosition, SignedFile } from 'src/interfaces/firma.interfaces';
 import { SignDocumentDto } from 'src/documento/dto/sign-document.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Funcionario } from 'src/funcionario/entities/funcionario.entity';
 import * as sharp from 'sharp';
 import { createCanvas, loadImage } from 'canvas';
+import { PDFDocument } from 'pdf-lib';
 @Injectable()
 export class FirmaService {
   constructor(
@@ -36,149 +37,185 @@ export class FirmaService {
     imageBuffer: Buffer,
     fecha: string,
     funcionario: Funcionario,
-    heightImage?: number
+    heightImage: number = 30  // Cambiado a 30 como valor por defecto
   ): Promise<Buffer> {
     try {
-      // Factor de escala para mejor resolución
-      const scale = 4;
-      
-      // Dimensiones base
-      const logoWidth = heightImage || 70; // Use heightImage if provided, otherwise default to 70
-      const logoHeight = heightImage || 70; // Use heightImage for height as well
-      const padding = 8;
-      const totalHeight = heightImage || 70; // Adjust total height based on provided height
+      const scale = 2;
+      const logoWidth = 70;  // Valor fijo para el tamaño del logo
+      const logoHeight = 70; // Valor fijo para la altura del logo
+      const padding = 10;
   
-      // Crear un canvas temporal para medir el texto
       const measureCanvas = createCanvas(1, 1);
       const measureCtx = measureCanvas.getContext('2d');
+      const fontScale = 1; // Ajustado para mantener tamaño consistente
   
-      // Configurar fuentes para medición - ajustar tamaños de fuente proporcionalmente
-      const fontScale = heightImage ? (heightImage / 70) : 1; // Scale fonts based on height
-      
-      measureCtx.font = `bold ${8 * fontScale}px Arial`;
+      measureCtx.font = `bold ${12 * fontScale}px Arial`;
       const nombreWidth = measureCtx.measureText(funcionario.nombre).width;
       
-      measureCtx.font = `${7 * fontScale}px Arial`;
+      measureCtx.font = `${10 * fontScale}px Arial`;
       const cargoWidth = measureCtx.measureText(funcionario.cargo).width;
       
-      measureCtx.font = `${6.5 * fontScale}px Arial`;
+      measureCtx.font = `${9 * fontScale}px Arial`;
       const fechaWidth = measureCtx.measureText(fecha).width;
   
-      // Calcular el ancho necesario con margen extra para evitar cortes
       const maxTextWidth = Math.max(nombreWidth, cargoWidth, fechaWidth);
-      const totalWidth = logoWidth + padding + maxTextWidth + 25;
+      const totalWidth = logoWidth + padding + maxTextWidth + 30;
+      const totalHeight = logoHeight;
   
-      // Crear el canvas final con las dimensiones calculadas
       const canvas = createCanvas(totalWidth * scale, totalHeight * scale);
       const ctx = canvas.getContext('2d');
-  
-      // Configurar la calidad del renderizado
-      ctx.patternQuality = 'best';
-      ctx.quality = 'best';
-      ctx.antialias = 'default';
-      
-      // Escalar para mejor resolución
       ctx.scale(scale, scale);
-  
-      // Cargar y dibujar el logo
-      const logoImage = await loadImage(imageBuffer);
-      ctx.drawImage(logoImage, 0, 0, logoWidth, logoHeight);
-  
-      // Posición inicial del texto - ajustar basado en la altura
-      const startX = logoWidth + padding;
-      const textSpacing = heightImage ? (heightImage / 7) : 10; // Adjust text spacing based on height
       
-      // Dibujar nombre
-      ctx.font = `bold ${8 * fontScale}px Arial`;
+      const logo = await loadImage(imageBuffer);
+      ctx.drawImage(logo, 0, 0, logoWidth, logoHeight);
+  
+      const startX = logoWidth + padding;
+      const lineHeight = logoHeight / 4;
+  
+      ctx.font = `bold ${12 * fontScale}px Arial`;
       ctx.fillStyle = '#000000';
-      ctx.textBaseline = 'top';
-      ctx.fillText(funcionario.nombre, startX, textSpacing);
+      ctx.fillText(funcionario.nombre, startX, lineHeight);
   
-      // Dibujar cargo
-      ctx.font = `${7 * fontScale}px Arial`;
+      ctx.font = `${10 * fontScale}px Arial`;
       ctx.fillStyle = '#444444';
-      ctx.fillText(funcionario.cargo, startX, textSpacing * 2.2);
+      ctx.fillText(funcionario.cargo, startX, lineHeight * 2);
   
-      // Dibujar fecha
-      ctx.font = `${6.5 * fontScale}px Arial`;
+      ctx.font = `${9 * fontScale}px Arial`;
       ctx.fillStyle = '#666666';
-      ctx.fillText(fecha, startX, textSpacing * 3.2);
+      ctx.fillText(fecha, startX, lineHeight * 3);
   
-      // Convertir a Buffer con máxima calidad
-      return Buffer.from(canvas.toBuffer('image/png', {
-        compressionLevel: 0,
-        filters: canvas.PNG_FILTER_NONE
-      }));
+      return canvas.toBuffer('image/png');
     } catch (error) {
-      console.error('Error al agregar texto a la imagen:', error);
+      console.error('Error adding text to image:', error);
       throw error;
     }
   }
-
-async createAgileSignerConfig(
-  imageBuffer: Express.Multer.File,
-  heightImage: number,
-  funcionario: Funcionario,
-  signerOrder: number,
-  fecha: string,
-): Promise<string> {
-  const imageWithText = await this.addTextToImage(
-    imageBuffer.buffer,
-    fecha,
-    funcionario,
-    heightImage 
-  );
-
-  const imageBase64 = imageWithText.toString('base64');
   
-  const tempImage = await loadImage(imageWithText);
-  const width = tempImage.width / 4;
-  const height = tempImage.height / 4;
+  async createAgileSignerConfig(
+    imageBuffer: Express.Multer.File,
+    heightImage: number,
+    funcionario: Funcionario,
+    signerOrder: number,
+    fecha: string,
+    pdfBuffer: Buffer,
+  ): Promise<string> {
+    try {
+      // Crear la imagen con el texto
+      const imageWithText = await this.addTextToImage(
+        imageBuffer.buffer,
+        fecha,
+        funcionario,
+        heightImage
+      );
+      const base64Image = imageWithText.toString('base64');
   
-  // Configuración de página y espaciado
-  const pageHeight = 1008;
-  const pageWidth = 612;
-  const marginBottom = 50;
-  const marginLeft = 40;
-  const spacingBetweenSignatures = 20;
-  const firmasPerRow = 2;
+      // Configuración de dimensiones
+      const marginLeft = 40;
+      const signatureWidth = 200;
+      const signatureHeight = 100;
+      const spaceBetweenSignatures = 40;
+      const spaceBetweenRows = 40;
+      const signaturesPerRow = 2;
+      const maxRowsPerPage = 3; // Máximo de filas por página
   
-  // Calcular posición basada en el orden de firma
-  const row = Math.floor((signerOrder - 1) / firmasPerRow);
-  const column = (signerOrder - 1) % firmasPerRow;
+      // Calcular la posición de la firma
+      const position = await this.calculateSignaturePosition(
+        pdfBuffer,
+        signerOrder,
+        {
+          marginLeft,
+          signatureWidth,
+          signatureHeight,
+          spaceBetweenSignatures,
+          spaceBetweenRows,
+          signaturesPerRow,
+          maxRowsPerPage,
+          heightImage,
+        }
+      );
   
-  // Calcular coordenadas X
-  const llx = marginLeft + (column * (width + spacingBetweenSignatures));
-  const urx = llx + width;
-  
-  // Calcular coordenadas Y y página
-  const firmasPerPage = Math.floor((pageHeight - marginBottom) / (height + spacingBetweenSignatures));
-  const rowsPerPage = Math.floor(firmasPerPage / firmasPerRow);
-  const currentPage = Math.floor(row / rowsPerPage) + 1;
-  const adjustedRow = row % rowsPerPage;
-  
-  // Calcular Y desde abajo hacia arriba
-  const baseY = pageHeight - marginBottom - ((adjustedRow + 1) * (height + spacingBetweenSignatures));
-  const lly = baseY;
-  const ury = lly + height;
-
-  return `<AgileSignerConfig>
-      <Application id=\"THIS-CONFIG\">
-          <pdfPassword/>
-          <Signature>
-              <Visible active=\"true\" layer2=\"false\" label=\"true\" pos=\"1\">
-                  <llx>${llx}</llx>
-                  <lly>${lly}</lly>
-                  <urx>${urx}</urx>
-                  <ury>${ury}</ury>
-                  <page>${currentPage}</page>
-                  <image>BASE64</image>
-                  <BASE64VALUE>${imageBase64}</BASE64VALUE>
-              </Visible>
-          </Signature>
-      </Application>
+      return `<AgileSignerConfig>
+    <Application id="THIS-CONFIG">
+      <pdfPassword/>
+      <Signature>
+        <Visible active="true" layer2="false" label="true" pos="1">
+          <llx>${position.llx}</llx>
+          <lly>${position.lly}</lly>
+          <urx>${position.urx}</urx>
+          <ury>${position.ury}</ury>
+          <page>${position.page}</page>
+          <image>BASE64</image>
+          <BASE64VALUE>${base64Image}</BASE64VALUE>
+        </Visible>
+      </Signature>
+    </Application>
   </AgileSignerConfig>`;
-}
+    } catch (error) {
+      console.error('Error creating AgileSigner config:', error);
+      throw error;
+    }
+  }
+  
+  private async calculateSignaturePosition(
+    pdfBuffer: Buffer,
+    signerOrder: number,
+    config: {
+      marginLeft: number;
+      signatureWidth: number;
+      signatureHeight: number;
+      spaceBetweenSignatures: number;
+      spaceBetweenRows: number;
+      signaturesPerRow: number;
+      maxRowsPerPage: number;
+      heightImage: number;
+    }
+  ): Promise<SignaturePosition> {
+    const pdfDoc = await PDFDocument.load(pdfBuffer);
+    const totalPages = pdfDoc.getPageCount();
+  
+    // Calcular en qué página y posición debe ir la firma
+    const signaturesPerPage = config.signaturesPerRow * config.maxRowsPerPage;
+    const pageIndex = Math.floor((signerOrder - 1) / signaturesPerPage);
+    const signatureIndexInPage = (signerOrder - 1) % signaturesPerPage;
+  
+    // Calcular fila y columna dentro de la página
+    const row = Math.floor(signatureIndexInPage / config.signaturesPerRow);
+    const column = signatureIndexInPage % config.signaturesPerRow;
+  
+    // Calcular coordenadas X
+    const llx = config.marginLeft + (column * (config.signatureWidth + config.spaceBetweenSignatures));
+    const urx = llx + config.signatureWidth;
+  
+    // Invertir heightImage (30 es abajo, 0 es arriba)
+    const invertedHeight = 30 - config.heightImage;
+    // Convertir el rango 0-30 a coordenadas de página (100-700)
+    const baseYPosition = 100 + (invertedHeight * 20);
+    
+    // Ajustar la posición Y según la fila
+    const lly = baseYPosition + (row * (config.signatureHeight + config.spaceBetweenRows));
+    const ury = lly + config.signatureHeight;
+  
+    // Determinar la página donde irá la firma
+    const targetPage = totalPages + pageIndex;
+  
+    // Si necesitamos más páginas, las agregamos
+    if (pageIndex > 0) {
+      const lastPage = pdfDoc.getPage(totalPages - 1);
+      const { width, height } = lastPage.getSize();
+      
+      for (let i = totalPages; i < targetPage; i++) {
+        pdfDoc.addPage([width, height]);
+      }
+    }
+  
+    return {
+      llx,
+      lly,
+      ury,
+      urx,
+      page: targetPage,
+    };
+  }
   /**
    * Genera un token JWT para la firma del documento.
    * @param input - Datos de entrada para la firma del documento.
@@ -211,12 +248,12 @@ async createAgileSignerConfig(
    */
   async signdocument(
     input: SignDocumentDto & {
-      documentContent: string;
+      documentBuffer: Buffer; // Cambiado de documentContent: string
       documentChecksum: string;
       funcionario: Funcionario;
-      heightImage:number;
+      heightImage: number;
     },
-    signerOrder:number,
+    signerOrder: number,
     run: string,
     imageBuffer: Express.Multer.File,
   ) {
@@ -227,17 +264,17 @@ async createAgileSignerConfig(
       hour: '2-digit',
       minute: '2-digit',
     });
+  
     const token = this.generateToken(input, run);
-    const altura = input.heightImage
-    ? Math.max(30, Math.min(200, parseInt(input.heightImage.toString(), 10)))
-    : 70; 
     const layout = await this.createAgileSignerConfig(
       imageBuffer,
-      altura,
+      input.heightImage,
       input.funcionario,
       signerOrder,
       fecha,
+      input.documentBuffer, // Pasamos el buffer del PDF
     );
+    const documentContent = input.documentBuffer.toString('base64');
     const payload = {
       api_token_key: this.configService.get<string>('API_TOKEN_KEY'),
       token,
@@ -245,7 +282,7 @@ async createAgileSignerConfig(
         {
           description: 'descripcion',
           checksum: input.documentChecksum,
-          content: input.documentContent,
+          content: documentContent,
           'content-type': 'application/pdf',
           layout: layout,
         },
