@@ -73,18 +73,61 @@ export class AuthController {
   @Post('refresh')
   @UseGuards(AuthGuard('jwt-refresh'))
   async refreshToken(@Req() req, @Res({ passthrough: true }) res: Response) {
-    const { rut, refreshToken } = req.user;
-    const { access_token, user, refresh_token } =
-      await this.authService.refreshToken(rut, refreshToken);
-
-    res.cookie('refresh_token', refresh_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
-    });
-    return { access_token,user };
+    try {
+      console.log('Iniciando refresh de token:', { rut: req.user?.rut });
+      
+      const { rut, refreshToken } = req.user;
+      
+      console.log('Datos extraídos del request:', { 
+        tieneRut: !!rut, 
+        tieneRefreshToken: !!refreshToken 
+      });
+  
+      const { access_token, user, refresh_token } =
+        await this.authService.refreshToken(rut, refreshToken);
+  
+      console.log('Nuevos tokens generados correctamente');
+  
+      res.cookie('refresh_token', refresh_token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        path: '/',
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
+      });
+  
+      console.log('Cookie refresh_token actualizada');
+      return { access_token, user };
+      
+    } catch (error) {
+      console.log('Error en refresh token:', error);
+  
+      if (error instanceof UnauthorizedException) {
+        throw new HttpException(
+          error?.message || 'Sesión inválida o expirada',
+          HttpStatus.UNAUTHORIZED
+        );
+      }
+  
+      if (error instanceof BadRequestException) {
+        throw new HttpException(
+          'Datos de refresh inválidos',
+          HttpStatus.BAD_REQUEST
+        );
+      }
+  
+      if (error instanceof NotFoundException) {
+        throw new HttpException(
+          error?.message || 'Usuario no encontrado',
+          HttpStatus.NOT_FOUND
+        );
+      }
+  
+      throw new HttpException(
+        'Error inesperado al renovar la sesión. Por favor intente nuevamente.',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
   }
 
   @Post('/logout')

@@ -511,24 +511,25 @@ export class DocumentoService {
     fileName: string,
     action: 'view' | 'download',
   ): void {
-    // Configurar específicamente para PDF
     res.setHeader('Content-Type', 'application/pdf');
 
-    // Codificar el nombre del archivo para manejar caracteres especiales
     const encodedFileName = encodeURIComponent(fileName);
 
-    // Configurar si es descarga o visualización
     const disposition = action === 'download' ? 'attachment' : 'inline';
     res.setHeader(
       'Content-Disposition',
       `${disposition}; filename="${encodedFileName}"`,
     );
 
-    // Headers de seguridad para PDFs
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Cache-Control', 'private, max-age=3600'); // Cache de 1 hora para PDFs
-  }
-
+    
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    
+    // Agregar timestamp para forzar refresco
+    res.setHeader('Last-Modified', new Date().toUTCString());
+}
   async getById(
     id: number,
     user: User,

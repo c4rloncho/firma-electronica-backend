@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, ParseIntPipe, Query } from '@nestjs/common';
 import { TypeDocumentService } from './type-document.service';
 import { CreateTypeDocumentDto } from './dto/create-type-document.dto';
 import { UpdateTypeDocumentDto } from './dto/update-type-document.dto';
@@ -17,23 +17,12 @@ export class TypeDocumentController {
   create(@Body() createTypeDocumentDto: CreateTypeDocumentDto) {
     return this.typeDocumentService.create(createTypeDocumentDto);
   }
-
-  @Get()
-  findAll() {
-    return this.typeDocumentService.findAll();
+  @Get('all')
+  @Roles(Rol.ADMIN)
+  @UseGuards(AuthGuard('jwt') ,RolesGuard)
+  getAll(@Query('name')name:string){
+    return this.typeDocumentService.getAll(name);
   }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.typeDocumentService.findOne(+id);
-  }
-
-  @Patch(':id')
-  
-  update(@Param('id') id: string, @Body() updateTypeDocumentDto: UpdateTypeDocumentDto) {
-    return this.typeDocumentService.update(+id, updateTypeDocumentDto);
-  }
-
   @Delete(':id')
   @Roles(Rol.ADMIN)
   @UseGuards(AuthGuard('jwt') ,RolesGuard)

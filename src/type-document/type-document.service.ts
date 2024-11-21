@@ -1,41 +1,57 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateTypeDocumentDto } from './dto/create-type-document.dto';
 import { UpdateTypeDocumentDto } from './dto/update-type-document.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TypeDocument } from './entities/type-document.entity';
-import { Repository } from 'typeorm';
+import { ILike, Repository } from 'typeorm';
 import { NotFoundError } from 'rxjs';
 
 @Injectable()
 export class TypeDocumentService {
   constructor(
     @InjectRepository(TypeDocument)
-    private readonly typeDocumentRepository:Repository<TypeDocument>,
-  ){}
+    private readonly typeDocumentRepository: Repository<TypeDocument>,
+  ) {}
   async create(input: CreateTypeDocumentDto) {
     let typeDocument = await this.typeDocumentRepository.findOne({
-      where: { name: input.name }
+      where: { name: input.name },
     });
 
     if (typeDocument) {
-      throw new BadRequestException('Ya existe este nombre para tipo de documento');
+      throw new BadRequestException(
+        'Ya existe este nombre para tipo de documento',
+      );
     }
 
     typeDocument = this.typeDocumentRepository.create({
-      name: input.name
+      name: input.name,
     });
 
-    const savedTypeDocument = await this.typeDocumentRepository.save(typeDocument);
+    const savedTypeDocument =
+      await this.typeDocumentRepository.save(typeDocument);
 
     return {
       success: true,
       message: 'Tipo de documento creado exitosamente',
-      data: savedTypeDocument
+      data: savedTypeDocument,
     };
   }
 
-  findAll() {
-    return `This action returns all typeDocument`;
+  async getAll(name: string) {
+    const typesDocument = await this.typeDocumentRepository.find({
+      where: { name: ILike(`%${name}%`) },
+      take: 20,
+    });
+
+    if (typesDocument.length === 0) {
+      throw new NotFoundException('No se encontraron tipos de documentos');
+    }
+
+    return typesDocument;
   }
 
   findOne(id: number) {
@@ -47,8 +63,10 @@ export class TypeDocumentService {
   }
 
   async remove(id: number) {
-    const typeDocument = await this.typeDocumentRepository.findOne({where:{id:id}});
-    if(!typeDocument){
+    const typeDocument = await this.typeDocumentRepository.findOne({
+      where: { id: id },
+    });
+    if (!typeDocument) {
       throw new NotFoundException('tipo de documento no encontrado');
     }
     await this.typeDocumentRepository.remove(typeDocument);

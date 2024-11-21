@@ -24,7 +24,7 @@ export class FuncionarioService {
   async searchFuncionarios(query: string): Promise<FuncionarioResponse[]> {
     const funcionarios = await this.funcionarioRepository.find({
       where: [{ rut: Like(`%${query}%`) }, { nombre: ILike(`%${query}%`) }],
-      take: 20, // Limita los resultados a 10 para evitar sobrecarga
+      take: 20, 
     });
 
     const response: FuncionarioResponse[] = funcionarios.map((f) => ({

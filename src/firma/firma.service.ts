@@ -98,9 +98,8 @@ export class FirmaService {
     signerOrder: number,
     fecha: string,
     pdfBuffer: Buffer,
-  ): Promise<string> {
+  ): Promise<{ layout: string; modifiedPdfBuffer: Buffer }> {
     try {
-      // Crear la imagen con el texto
       const imageWithText = await this.addTextToImage(
         imageBuffer.buffer,
         fecha,
@@ -116,10 +115,10 @@ export class FirmaService {
       const spaceBetweenSignatures = 40;
       const spaceBetweenRows = 40;
       const signaturesPerRow = 2;
-      const maxRowsPerPage = 3; // Máximo de filas por página
+      const maxRowsPerPage = 3;
   
-      // Calcular la posición de la firma
-      const position = await this.calculateSignaturePosition(
+      // Calcular la posición de la firma y obtener el PDF modificado
+      const { position, modifiedPdfBuffer } = await this.calculateSignaturePosition(
         pdfBuffer,
         signerOrder,
         {
@@ -134,22 +133,24 @@ export class FirmaService {
         }
       );
   
-      return `<AgileSignerConfig>
-    <Application id="THIS-CONFIG">
-      <pdfPassword/>
-      <Signature>
-        <Visible active="true" layer2="false" label="true" pos="1">
-          <llx>${position.llx}</llx>
-          <lly>${position.lly}</lly>
-          <urx>${position.urx}</urx>
-          <ury>${position.ury}</ury>
-          <page>${position.page}</page>
-          <image>BASE64</image>
-          <BASE64VALUE>${base64Image}</BASE64VALUE>
-        </Visible>
-      </Signature>
-    </Application>
-  </AgileSignerConfig>`;
+      const layout = `<AgileSignerConfig>
+        <Application id="THIS-CONFIG">
+          <pdfPassword/>
+          <Signature>
+            <Visible active="true" layer2="false" label="true" pos="1">
+              <llx>${position.llx}</llx>
+              <lly>${position.lly}</lly>
+              <urx>${position.urx}</urx>
+              <ury>${position.ury}</ury>
+              <page>${position.page}</page>
+              <image>BASE64</image>
+              <BASE64VALUE>${base64Image}</BASE64VALUE>
+            </Visible>
+          </Signature>
+        </Application>
+      </AgileSignerConfig>`;
+  
+      return { layout, modifiedPdfBuffer };
     } catch (error) {
       console.error('Error creating AgileSigner config:', error);
       throw error;
@@ -169,7 +170,7 @@ export class FirmaService {
       maxRowsPerPage: number;
       heightImage: number;
     }
-  ): Promise<SignaturePosition> {
+  ): Promise<{ position: SignaturePosition; modifiedPdfBuffer: Buffer }> {
     const pdfDoc = await PDFDocument.load(pdfBuffer);
     const totalPages = pdfDoc.getPageCount();
   
@@ -182,17 +183,20 @@ export class FirmaService {
     const row = Math.floor(signatureIndexInPage / config.signaturesPerRow);
     const column = signatureIndexInPage % config.signaturesPerRow;
   
-    // Calcular coordenadas X
+    // Calcular coordenadas X (esto no cambia)
     const llx = config.marginLeft + (column * (config.signatureWidth + config.spaceBetweenSignatures));
     const urx = llx + config.signatureWidth;
   
-    // Invertir heightImage (30 es abajo, 0 es arriba)
-    const invertedHeight = 30 - config.heightImage;
-    // Convertir el rango 0-30 a coordenadas de página (100-700)
-    const baseYPosition = 100 + (invertedHeight * 20);
+    // Obtener dimensiones de la página
+    const lastPage = pdfDoc.getPage(totalPages - 1);
+    const { height: pageHeight } = lastPage.getSize();
+  
+    // Calcular posición Y empezando desde abajo
+    const bottomMargin = 50; // Margen inferior
+    const baseYPosition = bottomMargin + config.signatureHeight; // Empezar desde abajo
     
-    // Ajustar la posición Y según la fila
-    const lly = baseYPosition + (row * (config.signatureHeight + config.spaceBetweenRows));
+    // Invertir el cálculo de Y para que crezca hacia arriba
+    const lly = baseYPosition + (Math.abs(config.maxRowsPerPage - 1 - row) * (config.signatureHeight + config.spaceBetweenRows));
     const ury = lly + config.signatureHeight;
   
     // Determinar la página donde irá la firma
@@ -200,44 +204,27 @@ export class FirmaService {
   
     // Si necesitamos más páginas, las agregamos
     if (pageIndex > 0) {
-      const lastPage = pdfDoc.getPage(totalPages - 1);
-      const { width, height } = lastPage.getSize();
-      
       for (let i = totalPages; i < targetPage; i++) {
-        pdfDoc.addPage([width, height]);
+        const newPage = pdfDoc.addPage([lastPage.getWidth(), lastPage.getHeight()]);
       }
     }
   
+    // Convertir Uint8Array a Buffer
+    const pdfBytes = await pdfDoc.save();
+    const modifiedPdfBuffer = Buffer.from(pdfBytes);
+  
     return {
-      llx,
-      lly,
-      ury,
-      urx,
-      page: targetPage,
+      position: {
+        llx,
+        lly,
+        ury,
+        urx,
+        page: targetPage,
+      },
+      modifiedPdfBuffer
     };
   }
-  /**
-   * Genera un token JWT para la firma del documento.
-   * @param input - Datos de entrada para la firma del documento.
-   * @returns Token JWT generado.
-   */
-  private generateToken(input: SignDocumentDto, run: string) {
-    const now = new Date();
-    const expirationDate = new Date(now.getTime() + 30 * 60 * 1000);
-    const formattedExpiration = expirationDate
-      .toLocaleString('sv', { timeZone: 'America/Santiago' })
-      .replace(' ', 'T');
 
-    return this.jwtService.sign(
-      {
-        run: run,
-        entity: input.entity,
-        purpose: input.purpose,
-        expiration: formattedExpiration,
-      },
- 
-    );
-  }
 
   /**
    * Firma un documento utilizando api de firmagob firma digital.
@@ -266,15 +253,17 @@ export class FirmaService {
     });
   
     const token = this.generateToken(input, run);
-    const layout = await this.createAgileSignerConfig(
-      imageBuffer,
-      input.heightImage,
-      input.funcionario,
-      signerOrder,
-      fecha,
-      input.documentBuffer, // Pasamos el buffer del PDF
-    );
-    const documentContent = input.documentBuffer.toString('base64');
+  // Obtener el layout y el PDF modificado
+  const { layout, modifiedPdfBuffer } = await this.createAgileSignerConfig(
+    imageBuffer,
+    input.heightImage,
+    input.funcionario,
+    signerOrder,
+    fecha,
+    input.documentBuffer,
+  );
+
+  const documentContent = modifiedPdfBuffer.toString('base64');
     const payload = {
       api_token_key: this.configService.get<string>('API_TOKEN_KEY'),
       token,
@@ -333,6 +322,30 @@ export class FirmaService {
       );
     }
   }
+
+
+    /**
+   * Genera un token JWT para la firma del documento.
+   * @param input - Datos de entrada para la firma del documento.
+   * @returns Token JWT generado.
+   */
+    private generateToken(input: SignDocumentDto, run: string) {
+      const now = new Date();
+      const expirationDate = new Date(now.getTime() + 30 * 60 * 1000);
+      const formattedExpiration = expirationDate
+        .toLocaleString('sv', { timeZone: 'America/Santiago' })
+        .replace(' ', 'T');
+  
+      return this.jwtService.sign(
+        {
+          run: run,
+          entity: input.entity,
+          purpose: input.purpose,
+          expiration: formattedExpiration,
+        },
+   
+      );
+    }
   /**
    * Procesa la respuesta del servicio de firma digital.
    * @param responseData - Datos de respuesta del servicio de firma.
