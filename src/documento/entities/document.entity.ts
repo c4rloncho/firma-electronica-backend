@@ -43,5 +43,4 @@ import { DocumentView } from "./document-visible-users.entity";
     @OneToMany(()=>DocumentView, documentView => documentView.document)
     documentViews: DocumentView[];
 
-
   }

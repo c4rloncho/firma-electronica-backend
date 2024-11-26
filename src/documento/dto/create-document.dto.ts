@@ -15,6 +15,10 @@ export class CreateDocumentDto {
   @IsNotEmpty()
   name: string;
 
+  @IsString()
+  @IsNotEmpty()
+  typeDocument:string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @ArrayMinSize(1)

@@ -1,5 +1,5 @@
 import { Document } from "src/documento/entities/document.entity";
-import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from "typeorm";
+import { Column, DeleteDateColumn, Entity, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 
 @Entity()
 export class TypeDocument {
@@ -12,4 +12,7 @@ export class TypeDocument {
 
     @OneToMany(()=> Document, document => document.typeDocument)
     documents: Document[]
+
+    @DeleteDateColumn()
+    deletedAt:Date;
 }

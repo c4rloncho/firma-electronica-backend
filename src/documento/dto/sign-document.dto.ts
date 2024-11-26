@@ -14,9 +14,6 @@ export class SignDocumentDto {
 
     @IsBoolean()
     @IsNotEmpty()
-    @Transform(({ value }) => {
-        return value === 'true';
-    })
     isAttended: boolean;
     
     @IsInt()

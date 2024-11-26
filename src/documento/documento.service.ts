@@ -6,6 +6,7 @@ import {
   InternalServerErrorException,
   Logger,
   NotFoundException,
+  Type,
   UnauthorizedException,
 } from '@nestjs/common';
 import { CreateDocumentDto } from './dto/create-document.dto';
@@ -43,6 +44,8 @@ import { SignerType } from 'src/enums/signer-type.enum';
 import { Attachment } from 'src/attachment/entities/attachment.entity';
 import { Rol } from 'src/enums/rol.enum';
 import { DocumentView } from './entities/document-visible-users.entity';
+import { TypeDocument } from 'src/type-document/entities/type-document.entity';
+import { existsSync } from 'fs';
 
 /**
  * Servicio para manejar operaciones relacionadas con documentos y firmas.
@@ -61,6 +64,8 @@ export class DocumentoService {
     private readonly funcionarioRepository: Repository<Funcionario>,
     @InjectRepository(DocumentView)
     private readonly documentViewRepository: Repository<DocumentView>,
+    @InjectRepository(TypeDocument)
+    private readonly typeDocumentRepository:Repository<TypeDocument>,
     @InjectDataSource()
     private dataSource: DataSource,
     private firmaService: FirmaService,
@@ -81,7 +86,7 @@ export class DocumentoService {
   ): Promise<Document> {
     return this.documentRepository.manager.transaction(
       async (transactionalEntityManager) => {
-        const { name, signers, rutsToNotify,heightSigns } = createDocumentDto;
+        const { name, signers, rutsToNotify,heightSigns,typeDocument } = createDocumentDto;
 
         // Verificar RUTs únicos
         this.verifyUniqueRuts(signers);
@@ -92,6 +97,11 @@ export class DocumentoService {
         // Generar nombre aleatorio del archivo
         const randomName = this.generateRandomFileName(file.originalname);
 
+        //buscar typeDocument
+        const typeDoc = await this.typeDocumentRepository.findOne({where:{id:parseInt(typeDocument)}})
+        if(!typeDoc){
+          throw new NotFoundException('Tipo de documento no encontrado')
+        }
         // Crear y guardar el documento
         const document = await this.createAndSaveDocument(
           transactionalEntityManager,
@@ -100,6 +110,7 @@ export class DocumentoService {
           creatorRut,
           rutsToNotify,
           heightSigns,
+          typeDoc,
         );
 
         // Crear y guardar las firmas
@@ -138,7 +149,7 @@ export class DocumentoService {
     if (firmantes.length === 0 || visadores.length === 0) {
       return; // No hay necesidad de verificar si no hay firmantes o visadores
     }
-    //si existe un firmador con order minimo a los visadores lanza error (todos los visadores visan primero)
+    //si existe un firmador con order mínimo a los visadores lanza error (todos los visadores visan primero)
     const maxVisadorOrder = Math.max(...visadores.map((v) => v.order));
     const minFirmanteOrder = Math.min(...firmantes.map((f) => f.order));
 
@@ -156,6 +167,7 @@ export class DocumentoService {
     creatorRut: string,
     rutsToNotify: string[],
     heightSigns:number,
+    typeDocument:TypeDocument
   ): Promise<Document> {
     // Crear la instancia del documento
     const document = transactionalEntityManager.create(Document, {
@@ -163,7 +175,8 @@ export class DocumentoService {
       fileName,
       creatorRut,
       date: new Date(),
-      heightSigns
+      heightSigns,
+      typeDocument
     });
 
     // Guardar el documento
@@ -250,7 +263,6 @@ export class DocumentoService {
   async signDocument(
     run: string,
     input: SignDocumentDto,
-    imageBuffer: Express.Multer.File,
   ) {
     try {
       return this.dataSource.transaction(async (transactionalEntityManager) => {
@@ -338,6 +350,7 @@ export class DocumentoService {
           );
           
           const cleanRut = this.cleanRut(run);
+          const imageBuffer = this.getImageByType(pendingSignature.signerType);
           const firmaResult = await this.firmaService.signdocument(
             {
               ...input,
@@ -349,6 +362,7 @@ export class DocumentoService {
             pendingSignature.signerOrder,
             cleanRut,
             imageBuffer,
+            pendingSignature.signerType
           );
           if (firmaResult.success) {
             await this.saveSignedFile(
@@ -394,6 +408,27 @@ export class DocumentoService {
     });
     await this.documentViewRepository.save(document.documentViews);
   }
+  private getImageByType(signerType: string): Express.Multer.File {
+    if (SignerType.FIRMADOR === signerType) {
+        const filePath = join(__dirname, '../images/firma1.png');
+        if (!existsSync(filePath)) {
+            return null;
+        }
+        
+        // Leemos el archivo y creamos el buffer
+        const buffer = fs.readFileSync(filePath);
+        
+        const fileObject = {
+            buffer, 
+            path: filePath,
+            mimetype: 'image/png',
+            originalname: 'firmante.png'
+        } as Express.Multer.File;
+        
+        return fileObject;
+    }
+    return null;
+}
   private cleanRut(rut: string) {
     // Limpia el RUT
     let cleanRut = rut.replace(/[.-]/g, '');
@@ -960,9 +995,9 @@ export class DocumentoService {
 
       const document = await this.documentRepository.findOne({
         where: { id },
-        relations: ['signatures'],
+        relations: ['signatures','typeDocument'],
+        withDeleted:true,
       });
-
       // Validar si el documento existe
       if (!document) {
         throw new Error(`Documento con ID ${id} no encontrado`);
@@ -981,6 +1016,7 @@ export class DocumentoService {
         creatorRut: document.creatorRut,
         date: document.date,
         isFullySigned: document.isFullySigned,
+        typeDocument: document.typeDocument?.name || 'Tipo de documento no disponible',
         signatures: document.signatures.map((sig) => {
           return {
             id: sig.id,

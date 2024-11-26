@@ -20,6 +20,7 @@ import { Funcionario } from 'src/funcionario/entities/funcionario.entity';
 import * as sharp from 'sharp';
 import { createCanvas, loadImage } from 'canvas';
 import { PDFDocument } from 'pdf-lib';
+import { SignerType } from 'src/enums/signer-type.enum';
 @Injectable()
 export class FirmaService {
   constructor(
@@ -37,17 +38,18 @@ export class FirmaService {
     imageBuffer: Buffer,
     fecha: string,
     funcionario: Funcionario,
-    heightImage: number = 30  // Cambiado a 30 como valor por defecto
+    heightImage: number = 30  
   ): Promise<Buffer> {
     try {
       const scale = 2;
-      const logoWidth = 70;  // Valor fijo para el tamaño del logo
-      const logoHeight = 70; // Valor fijo para la altura del logo
+      // Usar heightImage para el tamaño del logo
+      const logoHeight = heightImage;  // Altura según parámetro
+      const logoWidth = heightImage;   // Mantener proporción cuadrada
       const padding = 10;
   
       const measureCanvas = createCanvas(1, 1);
       const measureCtx = measureCanvas.getContext('2d');
-      const fontScale = 1; // Ajustado para mantener tamaño consistente
+      const fontScale = heightImage / 70; // Escalar fuente en proporción a la altura
   
       measureCtx.font = `bold ${12 * fontScale}px Arial`;
       const nombreWidth = measureCtx.measureText(funcionario.nombre).width;
@@ -98,15 +100,40 @@ export class FirmaService {
     signerOrder: number,
     fecha: string,
     pdfBuffer: Buffer,
+    signerType: string,
   ): Promise<{ layout: string; modifiedPdfBuffer: Buffer }> {
     try {
-      const imageWithText = await this.addTextToImage(
-        imageBuffer.buffer,
-        fecha,
-        funcionario,
-        heightImage
-      );
-      const base64Image = imageWithText.toString('base64');
+      let base64Image;
+  
+      if (signerType === SignerType.VISADOR) {
+        const canvas = createCanvas(70, 70);
+        const ctx = canvas.getContext('2d');
+        
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, 70, 70);
+        
+        const iniciales = funcionario.nombre
+          .split(' ')
+          .map(nombre => nombre[0])
+          .join('')
+          .toUpperCase();
+  
+        ctx.font = 'bold 24px Arial';
+        ctx.fillStyle = '#000000';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(iniciales, 35, 35);
+  
+        base64Image = canvas.toBuffer('image/png').toString('base64');
+      } else {
+        const imageWithText = await this.addTextToImage(
+          imageBuffer.buffer,
+          fecha,
+          funcionario,
+          heightImage
+        );
+        base64Image = imageWithText.toString('base64');
+      }
   
       // Configuración de dimensiones
       const marginLeft = 40;
@@ -161,70 +188,74 @@ export class FirmaService {
     pdfBuffer: Buffer,
     signerOrder: number,
     config: {
-      marginLeft: number;
-      signatureWidth: number;
-      signatureHeight: number;
-      spaceBetweenSignatures: number;
-      spaceBetweenRows: number;
-      signaturesPerRow: number;
-      maxRowsPerPage: number;
-      heightImage: number;
+        marginLeft: number;
+        signatureWidth: number;
+        signatureHeight: number;
+        spaceBetweenSignatures: number;
+        spaceBetweenRows: number;
+        signaturesPerRow: number;
+        maxRowsPerPage: number;
+        heightImage: number;
     }
-  ): Promise<{ position: SignaturePosition; modifiedPdfBuffer: Buffer }> {
+): Promise<{ position: SignaturePosition; modifiedPdfBuffer: Buffer }> {
     const pdfDoc = await PDFDocument.load(pdfBuffer);
     const totalPages = pdfDoc.getPageCount();
-  
-    // Calcular en qué página y posición debe ir la firma
+    
+    // Calculamos cuántas firmas caben por página
     const signaturesPerPage = config.signaturesPerRow * config.maxRowsPerPage;
+    
+    // Calculamos la página y la posición de la firma
     const pageIndex = Math.floor((signerOrder - 1) / signaturesPerPage);
     const signatureIndexInPage = (signerOrder - 1) % signaturesPerPage;
-  
-    // Calcular fila y columna dentro de la página
+    
+    // Verificamos si necesitamos agregar nuevas páginas
+    while (pdfDoc.getPageCount() < pageIndex + 1) {
+        const templatePage = pdfDoc.getPage(0);
+        pdfDoc.addPage([templatePage.getWidth(), templatePage.getHeight()]);
+    }
+
+    const currentPage = pdfDoc.getPage(pageIndex);
+    const { width: pageWidth, height: pageHeight } = currentPage.getSize();
+
+    // Calculamos la fila y columna dentro de la página
     const row = Math.floor(signatureIndexInPage / config.signaturesPerRow);
     const column = signatureIndexInPage % config.signaturesPerRow;
-  
-    // Calcular coordenadas X (esto no cambia)
-    const llx = config.marginLeft + (column * (config.signatureWidth + config.spaceBetweenSignatures));
-    const urx = llx + config.signatureWidth;
-  
-    // Obtener dimensiones de la página
-    const lastPage = pdfDoc.getPage(totalPages - 1);
-    const { height: pageHeight } = lastPage.getSize();
-  
-    // Calcular posición Y empezando desde abajo
-    const bottomMargin = 50; // Margen inferior
-    const baseYPosition = bottomMargin + config.signatureHeight; // Empezar desde abajo
-    
-    // Invertir el cálculo de Y para que crezca hacia arriba
-    const lly = baseYPosition + (Math.abs(config.maxRowsPerPage - 1 - row) * (config.signatureHeight + config.spaceBetweenRows));
-    const ury = lly + config.signatureHeight;
-  
-    // Determinar la página donde irá la firma
-    const targetPage = totalPages + pageIndex;
-  
-    // Si necesitamos más páginas, las agregamos
-    if (pageIndex > 0) {
-      for (let i = totalPages; i < targetPage; i++) {
-        const newPage = pdfDoc.addPage([lastPage.getWidth(), lastPage.getHeight()]);
-      }
-    }
-  
-    // Convertir Uint8Array a Buffer
-    const pdfBytes = await pdfDoc.save();
-    const modifiedPdfBuffer = Buffer.from(pdfBytes);
-  
-    return {
-      position: {
-        llx,
-        lly,
-        ury,
-        urx,
-        page: targetPage,
-      },
-      modifiedPdfBuffer
-    };
-  }
 
+    // Calculamos el espacio total disponible para firmas
+    const totalWidthAvailable = pageWidth - (2 * config.marginLeft);
+    const signatureBlockWidth = config.signatureWidth + config.spaceBetweenSignatures;
+    
+    // Centramos las firmas en la página horizontalmente
+    const startX = config.marginLeft + 
+        (totalWidthAvailable - (config.signaturesPerRow * signatureBlockWidth)) / 2;
+
+    // Coordenadas X (izquierda a derecha)
+    const llx = startX + (column * signatureBlockWidth);
+    const urx = llx + config.signatureWidth;
+
+    // Coordenadas Y (desde abajo hacia arriba)
+    const marginBottom = config.heightImage; // Usamos heightImage como margen inferior
+    const signatureBlockHeight = config.signatureHeight + config.spaceBetweenRows;
+    const bottomStartY = marginBottom + (config.maxRowsPerPage - 1) * signatureBlockHeight;
+    
+    // Calculamos desde abajo, invirtiendo el orden de las filas
+    const invertedRow = config.maxRowsPerPage - 1 - row;
+    const lly = marginBottom + (invertedRow * signatureBlockHeight);
+    const ury = lly + config.signatureHeight;
+
+    const pdfBytes = await pdfDoc.save();
+
+    return {
+        position: {
+            llx,
+            lly,
+            urx,
+            ury,
+            page: pageIndex + 1,
+        },
+        modifiedPdfBuffer: Buffer.from(pdfBytes)
+    };
+}
 
   /**
    * Firma un documento utilizando api de firmagob firma digital.
@@ -235,7 +266,7 @@ export class FirmaService {
    */
   async signdocument(
     input: SignDocumentDto & {
-      documentBuffer: Buffer; // Cambiado de documentContent: string
+      documentBuffer: Buffer; 
       documentChecksum: string;
       funcionario: Funcionario;
       heightImage: number;
@@ -243,6 +274,7 @@ export class FirmaService {
     signerOrder: number,
     run: string,
     imageBuffer: Express.Multer.File,
+    signerType:string,
   ) {
     const fecha = new Date().toLocaleDateString('es-CL', {
       day: '2-digit',
@@ -251,8 +283,8 @@ export class FirmaService {
       hour: '2-digit',
       minute: '2-digit',
     });
-  
     const token = this.generateToken(input, run);
+    console.log(token)
   // Obtener el layout y el PDF modificado
   const { layout, modifiedPdfBuffer } = await this.createAgileSignerConfig(
     imageBuffer,
@@ -261,6 +293,7 @@ export class FirmaService {
     signerOrder,
     fecha,
     input.documentBuffer,
+    signerType,
   );
 
   const documentContent = modifiedPdfBuffer.toString('base64');
@@ -293,15 +326,7 @@ export class FirmaService {
     // Guardar en archivo JSON
     fs1.writeFileSync('request-log.json', JSON.stringify(requestInfo, null, 2));
 
-    // Guardar en archivo TXT
-    fs1.writeFileSync(
-      'request-log.txt',
-      `Request a API externa:\n` +
-        `URL: ${requestInfo.url}\n` +
-        `Method: ${requestInfo.method}\n` +
-        `Headers: ${JSON.stringify(headers, null, 2)}\n` +
-        `Body: ${JSON.stringify(payload, null, 2)}`,
-    );
+
     try {
       const response = await lastValueFrom(
         this.httpService.post(

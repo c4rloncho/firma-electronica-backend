@@ -87,22 +87,16 @@ export class DocumentoController {
   //firmar un documento
   @Post('sign')
   @UseGuards(AuthGuard('jwt'))
-  @UseInterceptors(FileInterceptor('image'))
   async signDocument(
     @Req() req,
     @Body() signDocumentDto: SignDocumentDto,
-    @UploadedFile() imageFile: Express.Multer.File,
   ) {
     const rut = req.user.rut;
-    if (!imageFile) {
-      throw new BadRequestException('La imagen de firma es requerida');
-    }
-
+    console.log(signDocumentDto)
     try {
       const result = await this.documentoService.signDocument(
         rut,
         signDocumentDto,
-        imageFile,
       );
       return {
         message: 'Documento firmado exitosamente',

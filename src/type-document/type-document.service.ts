@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { CreateTypeDocumentDto } from './dto/create-type-document.dto';
@@ -19,8 +20,18 @@ export class TypeDocumentService {
   async create(input: CreateTypeDocumentDto) {
     let typeDocument = await this.typeDocumentRepository.findOne({
       where: { name: input.name },
+      withDeleted: true,
     });
 
+    if (typeDocument?.deletedAt) {
+      //hacer restore
+      await this.typeDocumentRepository.restore(typeDocument.id);
+      return {
+        success: true,
+        message: 'Tipo de documento creado exitosamente',
+        data: typeDocument,
+      };
+    }
     if (typeDocument) {
       throw new BadRequestException(
         'Ya existe este nombre para tipo de documento',
@@ -41,17 +52,34 @@ export class TypeDocumentService {
     };
   }
 
-  async getAll(name: string) {
-    const typesDocument = await this.typeDocumentRepository.find({
-      where: { name: ILike(`%${name}%`) },
-      take: 20,
-    });
+  async getAll(name?: string, limit: number = 20) {
+    try {
+      let whereCondition = {};
 
-    if (typesDocument.length === 0) {
-      throw new NotFoundException('No se encontraron tipos de documentos');
+      // Solo aplicar el filtro de nombre si se proporciona
+      if (name) {
+        whereCondition = { name: ILike(`%${name}%`) };
+      }
+
+      const typesDocument = await this.typeDocumentRepository.find({
+        where: whereCondition,
+        take: Math.min(limit, 100), // Limita el máximo a 100 registros
+      });
+
+      if (typesDocument.length === 0) {
+        throw new NotFoundException('No se encontraron tipos de documentos');
+      }
+
+      return typesDocument;
+    } catch (error) {
+      // Manejo específico de errores
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'Error al buscar tipos de documentos',
+      );
     }
-
-    return typesDocument;
   }
 
   findOne(id: number) {
@@ -69,7 +97,7 @@ export class TypeDocumentService {
     if (!typeDocument) {
       throw new NotFoundException('tipo de documento no encontrado');
     }
-    await this.typeDocumentRepository.remove(typeDocument);
+    await this.typeDocumentRepository.softDelete(id);
     return { message: 'Tipo de documento eliminado exitosamente' };
   }
 }
