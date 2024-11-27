@@ -105,6 +105,7 @@ export class FirmaService {
     try {
       let base64Image;
   
+      // Generar imagen base64 para el firmante
       if (signerType === SignerType.VISADOR) {
         const canvas = createCanvas(70, 70);
         const ctx = canvas.getContext('2d');
@@ -135,7 +136,7 @@ export class FirmaService {
         base64Image = imageWithText.toString('base64');
       }
   
-      // Configuración de dimensiones
+      // Configuración de las dimensiones y el espaciado
       const marginLeft = 40;
       const signatureWidth = 200;
       const signatureHeight = 100;
@@ -160,16 +161,17 @@ export class FirmaService {
         }
       );
   
+      // Crear el layout en formato XML
       const layout = `<AgileSignerConfig>
         <Application id="THIS-CONFIG">
           <pdfPassword/>
           <Signature>
             <Visible active="true" layer2="false" label="true" pos="1">
-              <llx>${position.llx}</llx>
-              <lly>${position.lly}</lly>
-              <urx>${position.urx}</urx>
-              <ury>${position.ury}</ury>
-              <page>${position.page}</page>
+              <llx>${position.x}</llx>
+              <lly>${position.y}</lly>
+              <urx>${position.x + signatureWidth}</urx>
+              <ury>${position.y + signatureHeight}</ury>
+              <page>${position.pageIndex + 1}</page>
               <image>BASE64</image>
               <BASE64VALUE>${base64Image}</BASE64VALUE>
             </Visible>
@@ -177,6 +179,7 @@ export class FirmaService {
         </Application>
       </AgileSignerConfig>`;
   
+      // Retornar el layout y el PDF modificado
       return { layout, modifiedPdfBuffer };
     } catch (error) {
       console.error('Error creating AgileSigner config:', error);
@@ -184,78 +187,48 @@ export class FirmaService {
     }
   }
   
-  private async calculateSignaturePosition(
+  
+  async calculateSignaturePosition(
     pdfBuffer: Buffer,
     signerOrder: number,
     config: {
-        marginLeft: number;
-        signatureWidth: number;
-        signatureHeight: number;
-        spaceBetweenSignatures: number;
-        spaceBetweenRows: number;
-        signaturesPerRow: number;
-        maxRowsPerPage: number;
-        heightImage: number;
-    }
-): Promise<{ position: SignaturePosition; modifiedPdfBuffer: Buffer }> {
+      marginLeft: number;
+      signatureWidth: number;
+      signatureHeight: number;
+      spaceBetweenSignatures: number;
+      spaceBetweenRows: number;
+      signaturesPerRow: number;
+      maxRowsPerPage: number;
+      heightImage: number;
+    },
+  ): Promise<{ position: { x: number; y: number; pageIndex: number }; modifiedPdfBuffer: Buffer }> {
     const pdfDoc = await PDFDocument.load(pdfBuffer);
-    const totalPages = pdfDoc.getPageCount();
-    
-    // Calculamos cuántas firmas caben por página
-    const signaturesPerPage = config.signaturesPerRow * config.maxRowsPerPage;
-    
-    // Calculamos la página y la posición de la firma
-    const pageIndex = Math.floor((signerOrder - 1) / signaturesPerPage);
-    const signatureIndexInPage = (signerOrder - 1) % signaturesPerPage;
-    
-    // Verificamos si necesitamos agregar nuevas páginas
-    while (pdfDoc.getPageCount() < pageIndex + 1) {
-        const templatePage = pdfDoc.getPage(0);
-        pdfDoc.addPage([templatePage.getWidth(), templatePage.getHeight()]);
+    const pages = pdfDoc.getPages();
+    const totalSignaturesPerPage = config.signaturesPerRow * config.maxRowsPerPage;
+  
+    const pageIndex = Math.floor((signerOrder - 1) / totalSignaturesPerPage);
+    const localOrder = (signerOrder - 1) % totalSignaturesPerPage;
+    const rowIndex = Math.floor(localOrder / config.signaturesPerRow);
+    const colIndex = localOrder % config.signaturesPerRow;
+  
+    const x = config.marginLeft + colIndex * (config.signatureWidth + config.spaceBetweenSignatures);
+    const y = pages[pageIndex].getHeight() - (rowIndex + 1) * (config.signatureHeight + config.spaceBetweenRows);
+  
+    if (pageIndex >= pages.length) {
+      const newPage = pdfDoc.addPage();
+      newPage.setSize(pages[0].getWidth(), pages[0].getHeight());
     }
-
-    const currentPage = pdfDoc.getPage(pageIndex);
-    const { width: pageWidth, height: pageHeight } = currentPage.getSize();
-
-    // Calculamos la fila y columna dentro de la página
-    const row = Math.floor(signatureIndexInPage / config.signaturesPerRow);
-    const column = signatureIndexInPage % config.signaturesPerRow;
-
-    // Calculamos el espacio total disponible para firmas
-    const totalWidthAvailable = pageWidth - (2 * config.marginLeft);
-    const signatureBlockWidth = config.signatureWidth + config.spaceBetweenSignatures;
-    
-    // Centramos las firmas en la página horizontalmente
-    const startX = config.marginLeft + 
-        (totalWidthAvailable - (config.signaturesPerRow * signatureBlockWidth)) / 2;
-
-    // Coordenadas X (izquierda a derecha)
-    const llx = startX + (column * signatureBlockWidth);
-    const urx = llx + config.signatureWidth;
-
-    // Coordenadas Y (desde abajo hacia arriba)
-    const marginBottom = config.heightImage; // Usamos heightImage como margen inferior
-    const signatureBlockHeight = config.signatureHeight + config.spaceBetweenRows;
-    const bottomStartY = marginBottom + (config.maxRowsPerPage - 1) * signatureBlockHeight;
-    
-    // Calculamos desde abajo, invirtiendo el orden de las filas
-    const invertedRow = config.maxRowsPerPage - 1 - row;
-    const lly = marginBottom + (invertedRow * signatureBlockHeight);
-    const ury = lly + config.signatureHeight;
-
-    const pdfBytes = await pdfDoc.save();
-
+  
+    // Guardar el PDF modificado como Uint8Array y convertir a Buffer
+    const modifiedPdfUint8Array = await pdfDoc.save();
+    const modifiedPdfBuffer = Buffer.from(modifiedPdfUint8Array);
+  
     return {
-        position: {
-            llx,
-            lly,
-            urx,
-            ury,
-            page: pageIndex + 1,
-        },
-        modifiedPdfBuffer: Buffer.from(pdfBytes)
+      position: { x, y, pageIndex },
+      modifiedPdfBuffer,
     };
-}
+  }
+  
 
   /**
    * Firma un documento utilizando api de firmagob firma digital.
