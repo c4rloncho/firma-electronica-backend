@@ -21,12 +21,14 @@ import * as sharp from 'sharp';
 import { createCanvas, loadImage } from 'canvas';
 import { PDFDocument } from 'pdf-lib';
 import { SignerType } from 'src/enums/signer-type.enum';
+import { SignatureImageService } from './image-processor.service';
 @Injectable()
 export class FirmaService {
   constructor(
     private readonly jwtService: JwtService,
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
+    private signatureImageService: SignatureImageService,
   ) {}
   /**
    * Crea la configuración para AgileSigner.
@@ -246,7 +248,7 @@ export class FirmaService {
     },
     signerOrder: number,
     run: string,
-    imageBuffer: Express.Multer.File,
+    imageBuffer: Buffer,
     signerType:string,
   ) {
     const fecha = new Date().toLocaleDateString('es-CL', {
@@ -259,23 +261,20 @@ export class FirmaService {
     const token = this.generateToken(input, run);
     console.log(token)
   // Obtener el layout y el PDF modificado
-  const { layout, modifiedPdfBuffer } = await this.createAgileSignerConfig(
+  const layout = await this.signatureImageService.createSignatureLayout(
     imageBuffer,
-    input.heightImage,
     input.funcionario,
-    signerOrder,
     fecha,
-    input.documentBuffer,
-    signerType,
+    input.heightImage,
+    signerOrder,
   );
-
-  const documentContent = modifiedPdfBuffer.toString('base64');
+  const documentContent = input.documentBuffer.toString('base64');
     const payload = {
       api_token_key: this.configService.get<string>('API_TOKEN_KEY'),
       token,
       files: [
         {
-          description: 'descripcion',
+          description: 'descripción',
           checksum: input.documentChecksum,
           content: documentContent,
           'content-type': 'application/pdf',

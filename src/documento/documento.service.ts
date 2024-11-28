@@ -46,6 +46,7 @@ import { Rol } from 'src/enums/rol.enum';
 import { DocumentView } from './entities/document-visible-users.entity';
 import { TypeDocument } from 'src/type-document/entities/type-document.entity';
 import { existsSync } from 'fs';
+import { PDFDocument } from 'pdf-lib';
 
 /**
  * Servicio para manejar operaciones relacionadas con documentos y firmas.
@@ -65,7 +66,7 @@ export class DocumentoService {
     @InjectRepository(DocumentView)
     private readonly documentViewRepository: Repository<DocumentView>,
     @InjectRepository(TypeDocument)
-    private readonly typeDocumentRepository:Repository<TypeDocument>,
+    private readonly typeDocumentRepository: Repository<TypeDocument>,
     @InjectDataSource()
     private dataSource: DataSource,
     private firmaService: FirmaService,
@@ -86,7 +87,8 @@ export class DocumentoService {
   ): Promise<Document> {
     return this.documentRepository.manager.transaction(
       async (transactionalEntityManager) => {
-        const { name, signers, rutsToNotify,heightSigns,typeDocument } = createDocumentDto;
+        const { name, signers, rutsToNotify, heightSigns, typeDocument } =
+          createDocumentDto;
 
         // Verificar RUTs únicos
         this.verifyUniqueRuts(signers);
@@ -98,9 +100,11 @@ export class DocumentoService {
         const randomName = this.generateRandomFileName(file.originalname);
 
         //buscar typeDocument
-        const typeDoc = await this.typeDocumentRepository.findOne({where:{id:parseInt(typeDocument)}})
-        if(!typeDoc){
-          throw new NotFoundException('Tipo de documento no encontrado')
+        const typeDoc = await this.typeDocumentRepository.findOne({
+          where: { id: parseInt(typeDocument) },
+        });
+        if (!typeDoc) {
+          throw new NotFoundException('Tipo de documento no encontrado');
         }
         // Crear y guardar el documento
         const document = await this.createAndSaveDocument(
@@ -120,6 +124,9 @@ export class DocumentoService {
           signers,
         );
 
+        //modifical documento
+        const totalFirmas = signers.length;
+        await this.modifyDocument(totalFirmas, file, heightSigns);
         // Guardar el archivo
         await this.saveFile(file, randomName);
 
@@ -127,7 +134,47 @@ export class DocumentoService {
       },
     );
   }
+  async modifyDocument(
+    totalSignatures: number,
+    file: Express.Multer.File,
+    heightSigns: number,
+  ): Promise<void> {
+    try {
+      const existingPdfBytes = file.buffer;
+      const pdfDoc = await PDFDocument.load(existingPdfBytes);
 
+      // Obtener el tamaño de la primera página
+      const firstPage = pdfDoc.getPage(0);
+      const { width, height } = firstPage.getSize();
+
+      const SIGNATURES_PER_ROW = 2;
+      const ROW_HEIGHT = 150; // Altura aproximada que ocupa una fila de firmas
+
+      const availableRows = heightSigns >= 25 ? 1 : 3; // Por ejemplo, 3 filas si está arriba
+      const signaturesInFirstPage = availableRows * SIGNATURES_PER_ROW;
+
+      // Recalcular páginas necesarias
+      const remainingSignatures = Math.max(
+        0,
+        totalSignatures - signaturesInFirstPage,
+      );
+      const signaturesPerPage = 4; // 2 filas de 2 firmas en páginas adicionales
+      const additionalPagesNeeded = Math.ceil(
+        remainingSignatures / signaturesPerPage,
+      );
+
+      // Añadir páginas necesarias con el mismo tamaño
+      for (let i = 0; i < additionalPagesNeeded; i++) {
+        pdfDoc.addPage([width, height]);
+      }
+
+      const modifiedPdfBytes = await pdfDoc.save();
+      file.buffer = Buffer.from(modifiedPdfBytes);
+      file.size = modifiedPdfBytes.length;
+    } catch (error) {
+      throw new Error('Error al modificar el documento PDF');
+    }
+  }
   private verifyUniqueRuts(signers: SignerDto[]): void {
     const ruts = signers.map((signer) => signer.rut);
     const uniqueRuts = new Set(ruts);
@@ -166,8 +213,8 @@ export class DocumentoService {
     fileName: string,
     creatorRut: string,
     rutsToNotify: string[],
-    heightSigns:number,
-    typeDocument:TypeDocument
+    heightSigns: number,
+    typeDocument: TypeDocument,
   ): Promise<Document> {
     // Crear la instancia del documento
     const document = transactionalEntityManager.create(Document, {
@@ -176,7 +223,7 @@ export class DocumentoService {
       creatorRut,
       date: new Date(),
       heightSigns,
-      typeDocument
+      typeDocument,
     });
 
     // Guardar el documento
@@ -260,10 +307,7 @@ export class DocumentoService {
    * @throws BadRequestException si el documento ya ha sido firmado o no corresponde firmar.
    * @throws NotFoundException si el documento no se encuentra.
    */
-  async signDocument(
-    run: string,
-    input: SignDocumentDto,
-  ) {
+  async signDocument(run: string, input: SignDocumentDto) {
     try {
       return this.dataSource.transaction(async (transactionalEntityManager) => {
         const { documentId } = input;
@@ -348,7 +392,6 @@ export class DocumentoService {
             document.fileName,
             documentYear,
           );
-          
           const cleanRut = this.cleanRut(run);
           const imageBuffer = this.getImageByType(pendingSignature.signerType);
           const firmaResult = await this.firmaService.signdocument(
@@ -362,7 +405,7 @@ export class DocumentoService {
             pendingSignature.signerOrder,
             cleanRut,
             imageBuffer,
-            pendingSignature.signerType
+            pendingSignature.signerType,
           );
           if (firmaResult.success) {
             await this.saveSignedFile(
@@ -408,26 +451,20 @@ export class DocumentoService {
     });
     await this.documentViewRepository.save(document.documentViews);
   }
-  private getImageByType(signerType: string): Express.Multer.File {
-    if (SignerType.FIRMADOR === signerType) {
-        const filePath = join(__dirname, '../images/firma1.png');
+  private getImageByType(signerType: string): Buffer {
+    const filePath = join(__dirname, '../images/firma1.png');
+    
+    if (signerType.toUpperCase() === SignerType.FIRMADOR) {
         if (!existsSync(filePath)) {
-            return null;
+            throw new Error(`Archivo de firma no encontrado en: ${filePath}`);
         }
         
-        // Leemos el archivo y creamos el buffer
-        const buffer = fs.readFileSync(filePath);
-        
-        const fileObject = {
-            buffer, 
-            path: filePath,
-            mimetype: 'image/png',
-            originalname: 'firmante.png'
-        } as Express.Multer.File;
-        
-        return fileObject;
+        // const buffer = fs.readFileSync(filePath);
+        // return buffer;
     }
-    return null;
+    const buffer = fs.readFileSync(filePath);
+    return buffer;
+    //return null;
 }
   private cleanRut(rut: string) {
     // Limpia el RUT
@@ -438,12 +475,10 @@ export class DocumentoService {
     return cleanRut;
   }
 
-
- 
   async prepareFile(
     fileName: string,
     year: string,
-): Promise<{ fileBuffer: Buffer; checksum: string }> {
+  ): Promise<{ fileBuffer: Buffer; checksum: string }> {
     const remotePath = `/uploads/${year}/${fileName}`;
     try {
       const fileStream = await this.remoteStorage.getFileStream(remotePath);
@@ -466,7 +501,7 @@ export class DocumentoService {
     } catch (error) {
       throw new Error(`Error al preparar el archivo remoto: ${error.message}`);
     }
-}
+  }
 
   private calculateChecksum(buffer: Buffer): string {
     return crypto.createHash('sha256').update(buffer).digest('hex');
@@ -557,14 +592,14 @@ export class DocumentoService {
     );
 
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    
+
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
-    
+
     // Agregar timestamp para forzar refresco
     res.setHeader('Last-Modified', new Date().toUTCString());
-}
+  }
   async getById(
     id: number,
     user: User,
@@ -995,8 +1030,8 @@ export class DocumentoService {
 
       const document = await this.documentRepository.findOne({
         where: { id },
-        relations: ['signatures','typeDocument'],
-        withDeleted:true,
+        relations: ['signatures', 'typeDocument'],
+        withDeleted: true,
       });
       // Validar si el documento existe
       if (!document) {
@@ -1016,7 +1051,8 @@ export class DocumentoService {
         creatorRut: document.creatorRut,
         date: document.date,
         isFullySigned: document.isFullySigned,
-        typeDocument: document.typeDocument?.name || 'Tipo de documento no disponible',
+        typeDocument:
+          document.typeDocument?.name || 'Tipo de documento no disponible',
         signatures: document.signatures.map((sig) => {
           return {
             id: sig.id,
@@ -1160,7 +1196,7 @@ export class DocumentoService {
       return {
         documentViewId: view.id,
         documentId: view.document.id,
-        documentName:view.document.name,
+        documentName: view.document.name,
         documentDate: view.document.date,
         documentCreatorRut: view.document.creatorRut,
       };
@@ -1179,15 +1215,17 @@ export class DocumentoService {
     const documentView = await this.documentViewRepository.findOne({
       where: {
         id,
-        funcionario: { rut }
+        funcionario: { rut },
       },
     });
 
     if (!documentView) {
-      throw new NotFoundException('no tienes permiso para eliminar esta notificación');
+      throw new NotFoundException(
+        'no tienes permiso para eliminar esta notificación',
+      );
     }
 
     await this.documentViewRepository.remove(documentView);
     return { message: 'elemento eliminado correctamente' };
-}
+  }
 }

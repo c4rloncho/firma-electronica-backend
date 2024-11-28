@@ -9,6 +9,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Document } from 'src/documento/entities/document.entity';
 import { DocumentSignature } from 'src/documento/entities/document-signature.entity';
 import { Funcionario } from 'src/funcionario/entities/funcionario.entity';
+import { SignatureImageService } from './image-processor.service';
 
 @Module({
   imports: [
@@ -24,7 +25,7 @@ import { Funcionario } from 'src/funcionario/entities/funcionario.entity';
     }),
   ],
   controllers: [FirmaController],
-  providers: [FirmaService],
+  providers: [FirmaService,SignatureImageService],
   exports:[FirmaService],
 })
 export class FirmaModule {}
