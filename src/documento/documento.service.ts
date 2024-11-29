@@ -406,6 +406,7 @@ export class DocumentoService {
             cleanRut,
             imageBuffer,
             pendingSignature.signerType,
+            document.signatures.length
           );
           if (firmaResult.success) {
             await this.saveSignedFile(

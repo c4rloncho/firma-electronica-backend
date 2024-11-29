@@ -250,6 +250,7 @@ export class FirmaService {
     run: string,
     imageBuffer: Buffer,
     signerType:string,
+    signaturesLength:number,
   ) {
     const fecha = new Date().toLocaleDateString('es-CL', {
       day: '2-digit',
@@ -267,6 +268,7 @@ export class FirmaService {
     fecha,
     input.heightImage,
     signerOrder,
+    signaturesLength,
   );
   const documentContent = input.documentBuffer.toString('base64');
     const payload = {

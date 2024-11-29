@@ -109,44 +109,46 @@ export class SignatureImageService {
   private calculateSignaturePosition(
     signerOrder: number,
     heightImage: number,
-    signatureWidth: number = 400,  // ancho de nuestra imagen de firma
-    signatureHeight: number = 200,  // alto de nuestra imagen de firma
+    signaturesLength: number,
+    signatureWidth: number = 300,
+    signatureHeight: number = 200,
   ): { llx: number; lly: number; urx: number; ury: number; page: string } {
-    // Página A4: 595 x 842 puntos (estándar PDF)
     const PAGE_WIDTH = 595;
     const PAGE_HEIGHT = 842;
     const MARGIN = 50;
-
-    // Para 2 firmas por fila
     const SIGNATURES_PER_ROW = 2;
-    const HORIZONTAL_SPACING = 20; // Espacio entre firmas horizontales
-
-    // Calcular el espacio disponible para firmas
+    
+    // Calcular posición en la fila
+    const col = (signerOrder - 1) % SIGNATURES_PER_ROW;
     const availableWidth = PAGE_WIDTH - (2 * MARGIN);
     const signatureSpacing = availableWidth / SIGNATURES_PER_ROW;
-    
-    // Determinar fila y columna basado en el orden
-    const row = Math.floor((signerOrder - 1) / SIGNATURES_PER_ROW);
-    const col = (signerOrder - 1) % SIGNATURES_PER_ROW;
+    const llx = MARGIN + (col * signatureSpacing);
+    const urx = llx + signatureWidth;
 
-    let llx, lly, urx, ury;
-    let page = '1';
+    let lly, ury, page;
 
-    // Si es la primera firma y heightImage es cerca de 30, va al final de la primera página
-    if (signerOrder <= 2 && heightImage >= 25) {
-      llx = MARGIN + (col * signatureSpacing);
-      lly = MARGIN;
-      urx = llx + signatureWidth;
-      ury = lly + signatureHeight;
-      page = 'LAST';
+    if (heightImage > 25) {
+      if (signerOrder <= 2) {
+        // Si son solo 2 firmas, van en la última página
+        // Si hay más, van en la penúltima
+        page = signaturesLength <= 2 ? 'LAST' : '-2';
+        // Posición en parte inferior de la página
+        lly = MARGIN;
+        ury = lly + signatureHeight;
+      } else {
+        // Firmas 3+ van en la última página
+        page = 'LAST';
+        // Calcular posición vertical basada en el orden
+        const row = Math.floor((signerOrder - 3) / SIGNATURES_PER_ROW);
+        lly = PAGE_HEIGHT - (MARGIN + signatureHeight + (row * (signatureHeight + 20)));
+        ury = lly + signatureHeight;
+      }
     } else {
-      // Para las demás firmas, calcular posición basada en orden
-      const currentPage = Math.floor(row / 2); // 2 filas por página
-      llx = MARGIN + (col * signatureSpacing);
-      lly = PAGE_HEIGHT - (MARGIN + signatureHeight + ((row % 2) * (signatureHeight + 20)));
-      urx = llx + signatureWidth;
+      // Todas las firmas van en la última página
+      page = 'LAST';
+      const row = Math.floor((signerOrder - 1) / SIGNATURES_PER_ROW);
+      lly = PAGE_HEIGHT - (MARGIN + signatureHeight + (row * (signatureHeight + 20)));
       ury = lly + signatureHeight;
-      page = (currentPage + 1).toString();
     }
 
     return { llx, lly, urx, ury, page };
@@ -158,12 +160,13 @@ export class SignatureImageService {
     fecha: string,
     heightImage: number,
     signerOrder: number,
+    signaturesLength:number,
   ): Promise<string> {
     const combinedImage = await this.createSignatureImage(imageBuffer, funcionario, fecha);
     const base64Image = await this.convertImageToBase64(combinedImage);
 
     // Calcular posición
-    const position = this.calculateSignaturePosition(signerOrder, heightImage);
+    const position = this.calculateSignaturePosition(signerOrder, heightImage,signaturesLength);
 
     // Crear XML con las posiciones calculadas
     return `
