@@ -3,7 +3,13 @@
 import { Injectable } from '@nestjs/common';
 import { createCanvas, loadImage } from 'canvas';
 import { Funcionario } from 'src/funcionario/entities/funcionario.entity';
-
+interface SignaturePosition {
+  llx: number;  // Lower Left X
+  lly: number;  // Lower Left Y
+  urx: number;  // Upper Right X
+  ury: number;  // Upper Right Y
+  page: number; // Página donde va la firma
+}
 @Injectable()
 export class SignatureImageService {
 
@@ -11,147 +17,45 @@ export class SignatureImageService {
     return imageBuffer.toString('base64');
   }
 
-  async createSignatureImage(
+  async  createSignatureImage(
     imageBuffer: Buffer,
-    funcionario: Funcionario,
-    fecha: string,
+    funcionario: { cargo: string; nombre: string; rut: string },
+    fecha: string
   ): Promise<Buffer> {
-    try {
-      console.log('Iniciando creación de imagen');
-      // Reducimos el factor de escala
-      const SCALE_FACTOR = 2;
-      const FONT_SIZE = 20; // Tamaño de fuente fijo, sin escalar
-      
-      console.log('Creando canvas temporal');
-      const tempCanvas = createCanvas(1, 1);
-      const tempCtx = tempCanvas.getContext('2d');
-      tempCtx.font = `bold ${FONT_SIZE}px Arial`;
-      
-      console.log('Midiendo textos');
-      const textWidths = [
-        funcionario.nombre,
-        funcionario.cargo,
-        `RUT: ${funcionario.rut}`,
-        `Fecha: ${fecha}`
-      ].map(text => {
-        const width = tempCtx.measureText(text).width;
-        console.log(`Ancho del texto "${text}": ${width}`);
-        return width;
-      });
-      
-      const maxTextWidth = Math.max(...textWidths);
-      console.log('Ancho máximo de texto:', maxTextWidth);
-      
-      // Reducimos las dimensiones del logo
-      const logoWidth = 150 * SCALE_FACTOR;
-      const logoHeight = 100 * SCALE_FACTOR;
-      
-      // Ajustamos las dimensiones del canvas
-      const canvasWidth = logoWidth + maxTextWidth + (30 * SCALE_FACTOR);
-      const canvasHeight = 100 * SCALE_FACTOR;
-      
-      console.log('Dimensiones del canvas:', { canvasWidth, canvasHeight });
-      
-      console.log('Creando canvas principal');
-      const canvas = createCanvas(canvasWidth, canvasHeight);
-      const ctx = canvas.getContext('2d');
-      ctx.imageSmoothingEnabled = true;
+    const canvas = createCanvas(400, 100);
+    const ctx = canvas.getContext('2d');
   
-      console.log('Cargando imagen');
-      const image = await loadImage(imageBuffer);
-      console.log('Dimensiones de imagen original:', { width: image.width, height: image.height });
-      
-      const scale = Math.min(
-        logoWidth / image.width,
-        logoHeight / image.height
-      );
-      console.log('Factor de escala para imagen:', scale);
-      
-      const imgWidth = image.width * scale;
-      const imgHeight = image.height * scale;
-      console.log('Dimensiones de imagen escalada:', { imgWidth, imgHeight });
-      
-      const imgX = 20;
-      const imgY = (canvasHeight - imgHeight) / 2;
-      console.log('Posición de imagen:', { imgX, imgY });
-      
-      console.log('Dibujando imagen');
-      ctx.drawImage(image, imgX, imgY, imgWidth, imgHeight);
+    // Fondo blanco
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, 400, 100);
   
-      console.log('Configurando texto');
-      ctx.fillStyle = 'black';
-      ctx.font = ` ${FONT_SIZE}px Arial`;
-      ctx.textAlign = 'left';
-      
-      const textX = imgX + imgWidth + 40;
-      const lineHeight = FONT_SIZE * 1.5;
-      const textStartY = (canvasHeight / 2) - (lineHeight * 1.5);
-      
-      console.log('Dibujando textos');
-      ctx.fillText(funcionario.nombre, textX, textStartY);
-      ctx.fillText(funcionario.cargo, textX, textStartY + lineHeight);
-      ctx.fillText(`RUT: ${funcionario.rut}`, textX, textStartY + lineHeight * 2);
-      ctx.fillText(`Fecha: ${fecha}`, textX, textStartY + lineHeight * 3);
+    // Cargar y dibujar la imagen de firma
+    const image = await loadImage(imageBuffer);
+    ctx.drawImage(image, 0, 0, 100, 100);
   
-      console.log('Generando buffer');
-      return canvas.toBuffer('image/png', {
-        compressionLevel: 0,
-        filters: canvas.PNG_ALL_FILTERS,
-        resolution: 300 // Reducimos también la resolución
-      });
-    } catch (error) {
-      console.error('Error detallado:', error);
-      console.error('Stack trace:', error.stack);
-      throw new Error(`Error al crear la imagen de firma: ${error.message}`);
-    }
+    // Texto simple
+    ctx.font = '12px Arial';
+    ctx.fillStyle = 'black';
+    ctx.fillText(`Nombre: ${funcionario.nombre}`, 120, 30);
+    ctx.fillText(`Cargo: ${funcionario.cargo}`, 120, 50);
+    ctx.fillText(`RUT: ${funcionario.rut}`, 120, 70);
+    ctx.fillText(`Fecha: ${fecha}`, 120, 90);
+  
+    return canvas.toBuffer();
   }
 
   private calculateSignaturePosition(
     signerOrder: number,
     heightImage: number,
-    signaturesLength: number,
-    signatureWidth: number = 300,
-    signatureHeight: number = 200,
-  ): { llx: number; lly: number; urx: number; ury: number; page: string } {
-    const PAGE_WIDTH = 595;
-    const PAGE_HEIGHT = 842;
-    const MARGIN = 50;
-    const SIGNATURES_PER_ROW = 2;
-    
-    // Calcular posición en la fila
-    const col = (signerOrder - 1) % SIGNATURES_PER_ROW;
-    const availableWidth = PAGE_WIDTH - (2 * MARGIN);
-    const signatureSpacing = availableWidth / SIGNATURES_PER_ROW;
-    const llx = MARGIN + (col * signatureSpacing);
-    const urx = llx + signatureWidth;
-
-    let lly, ury, page;
-
-    if (heightImage > 25) {
-      if (signerOrder <= 2) {
-        // Si son solo 2 firmas, van en la última página
-        // Si hay más, van en la penúltima
-        page = signaturesLength <= 2 ? 'LAST' : '-2';
-        // Posición en parte inferior de la página
-        lly = MARGIN;
-        ury = lly + signatureHeight;
-      } else {
-        // Firmas 3+ van en la última página
-        page = 'LAST';
-        // Calcular posición vertical basada en el orden
-        const row = Math.floor((signerOrder - 3) / SIGNATURES_PER_ROW);
-        lly = PAGE_HEIGHT - (MARGIN + signatureHeight + (row * (signatureHeight + 20)));
-        ury = lly + signatureHeight;
-      }
-    } else {
-      // Todas las firmas van en la última página
-      page = 'LAST';
-      const row = Math.floor((signerOrder - 1) / SIGNATURES_PER_ROW);
-      lly = PAGE_HEIGHT - (MARGIN + signatureHeight + (row * (signatureHeight + 20)));
-      ury = lly + signatureHeight;
-    }
-
-    return { llx, lly, urx, ury, page };
+    signaturesLength: number
+  ): SignaturePosition {
+    return {
+      llx: 50,
+      lly: 100,
+      urx: 250,
+      ury: 200,
+      page: -1
+    };
   }
 
   async createSignatureLayout(
@@ -179,7 +83,7 @@ export class SignatureImageService {
               <lly>${position.lly}</lly>
               <urx>${position.urx}</urx>
               <ury>${position.ury}</ury>
-              <page>${position.page}</page>
+              <page>lAST  </page>
               <image>BASE64</image>
               <BASE64VALUE>${base64Image}</BASE64VALUE>
             </Visible>
