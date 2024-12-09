@@ -260,7 +260,8 @@ export class FirmaService {
       minute: '2-digit',
     });
     const token = this.generateToken(input, run);
-    console.log(token)
+    const pdfDoc = await PDFDocument.load(input.documentBuffer)
+    const pages = pdfDoc.getPageCount(); 
   // Obtener el layout y el PDF modificado
   const layout = await this.signatureImageService.createSignatureLayout(
     imageBuffer,
@@ -269,6 +270,7 @@ export class FirmaService {
     input.heightImage,
     signerOrder,
     signaturesLength,
+    pages,
   );
   const documentContent = input.documentBuffer.toString('base64');
     const payload = {

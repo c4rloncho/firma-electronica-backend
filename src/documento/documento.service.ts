@@ -148,8 +148,6 @@ export class DocumentoService {
       const { width, height } = firstPage.getSize();
 
       const SIGNATURES_PER_ROW = 2;
-      const ROW_HEIGHT = 150; // Altura aproximada que ocupa una fila de firmas
-
       const availableRows = heightSigns >= 25 ? 1 : 3; // Por ejemplo, 3 filas si está arriba
       const signaturesInFirstPage = availableRows * SIGNATURES_PER_ROW;
 
@@ -158,7 +156,7 @@ export class DocumentoService {
         0,
         totalSignatures - signaturesInFirstPage,
       );
-      const signaturesPerPage = 4; // 2 filas de 2 firmas en páginas adicionales
+      const signaturesPerPage = 8; // 2 filas de 2 firmas en páginas adicionales
       const additionalPagesNeeded = Math.ceil(
         remainingSignatures / signaturesPerPage,
       );
@@ -317,7 +315,7 @@ export class DocumentoService {
         });
         if (!document) {
           throw new NotFoundException(
-            `Documento con el id ${documentId} no encontrado`,
+            `Documento con el id ${documentId} no encontrado o fue eliminado`,
           );
         }
         const funcionario = await this.funcionarioRepository.findOne({
