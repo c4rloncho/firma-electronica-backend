@@ -271,6 +271,7 @@ export class FirmaService {
     signerOrder,
     signaturesLength,
     pages,
+    signerType,
   );
   const documentContent = input.documentBuffer.toString('base64');
     const payload = {
