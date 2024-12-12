@@ -126,7 +126,9 @@ export class DocumentoService {
 
         //modifical documento
         const totalFirmas = signers.length;
-        await this.modifyDocument(totalFirmas, file, heightSigns);
+        //calcular total de firmadores
+        const firmadores = this.countSigners(signers);
+        await this.modifyDocument(totalFirmas, file, heightSigns,firmadores);
         // Guardar el archivo
         await this.saveFile(file, randomName);
 
@@ -134,10 +136,20 @@ export class DocumentoService {
       },
     );
   }
+  private countSigners(signers:SignerDto[]){
+    let total =0
+    signers.map((s)=>{
+      if(s.type === 'firmador'){
+        total++
+      }
+    })
+    return total
+  }
   async modifyDocument(
     totalSignatures: number,
     file: Express.Multer.File,
     heightSigns: number,
+    firmadores:number
   ): Promise<void> {
     try {
       const existingPdfBytes = file.buffer;
