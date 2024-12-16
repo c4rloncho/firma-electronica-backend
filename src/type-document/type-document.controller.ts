@@ -30,8 +30,7 @@ export class TypeDocumentController {
     return this.typeDocumentService.create(createTypeDocumentDto);
   }
   @Get('all')
-  @Roles(Rol.ADMIN)
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(AuthGuard('jwt'))
   getAll(
     @Query('name') name?: string,
     @Query('limit',  new DefaultValuePipe(20), ParseIntPipe) limit?: number,

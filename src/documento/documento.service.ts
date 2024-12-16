@@ -115,6 +115,7 @@ export class DocumentoService {
           rutsToNotify,
           heightSigns,
           typeDoc,
+          signers,
         );
 
         // Crear y guardar las firmas
@@ -225,7 +226,19 @@ export class DocumentoService {
     rutsToNotify: string[],
     heightSigns: number,
     typeDocument: TypeDocument,
+    signers:SignerDto[],
   ): Promise<Document> {
+    let totalSigners = 0;
+    let totalValidator = 0;
+    
+    for (const signer of signers) {
+        if (signer.type === 'firmador') {
+            totalSigners++;
+        }
+        if (signer.type === 'visador') {
+            totalValidator++;
+        }
+    }
     // Crear la instancia del documento
     const document = transactionalEntityManager.create(Document, {
       name,
@@ -234,6 +247,8 @@ export class DocumentoService {
       date: new Date(),
       heightSigns,
       typeDocument,
+      totalSigners,
+      totalValidator,
     });
 
     // Guardar el documento
@@ -416,7 +431,6 @@ export class DocumentoService {
             cleanRut,
             imageBuffer,
             pendingSignature.signerType,
-            document.signatures.length
           );
           if (firmaResult.success) {
             await this.saveSignedFile(

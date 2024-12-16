@@ -34,6 +34,12 @@ import { DocumentView } from "./document-visible-users.entity";
     @Column({ default: false })
     isFullySigned: boolean;
 
+    @Column({nullable:true})
+    totalSigners:number;
+    
+    @Column({nullable:true})
+    totalValidator:number;
+
     @OneToMany(() => Attachment, attachment => attachment.document)
     attachments: Attachment[];
 
