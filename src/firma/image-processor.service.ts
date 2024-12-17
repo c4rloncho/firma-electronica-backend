@@ -13,24 +13,21 @@ interface SignaturePosition {
 }
 @Injectable()
 export class SignatureImageService {
-  private readonly PAGE_HEIGHT = 800;
+  private readonly PAGE_HEIGHT = 900;
   private readonly MARGIN_LEFT = 50;
   private readonly HORIZONTAL_GAP = 20;
 
   // Dimensiones para firmadores
   private readonly SIGNER_WIDTH = 210;
   private readonly SIGNER_HEIGHT = 80;
-  private readonly SIGNER_MARGIN_BOTTOM = 100;
+  private readonly SIGNER_MARGIN_BOTTOM = 60;
 
-  // Dimensiones para visadores 
+  // Dimensiones para visadores
   private readonly VALIDATOR_WIDTH = 120;
   private readonly VALIDATOR_HEIGHT = 40;
-  private readonly VALIDATOR_MARGIN_BOTTOM = 30;
-  private readonly MARGIN_TOP = 10;  
-  private readonly ROW_HEIGHT = 150; 
-
-
-
+  private readonly VALIDATOR_MARGIN_BOTTOM = 0;
+  private readonly MARGIN_TOP = 10;
+  private readonly ROW_HEIGHT = 150;
 
   async convertImageToBase64(imageBuffer: Buffer): Promise<string> {
     return imageBuffer.toString('base64');
@@ -170,7 +167,6 @@ export class SignatureImageService {
     }
   }
 
-
   calculateSignaturePosition(
     signerOrder: number,
     heightImage: number,
@@ -179,7 +175,7 @@ export class SignatureImageService {
     totalPages: number,
     signerType: string,
   ): SignaturePosition {
-    const adjustedOrder = signerType === 'firmador' 
+    const adjustedOrder = signerType === 'firmador'
       ? this.getAdjustedSignerOrder(signerOrder, totalValidators)
       : signerOrder;
 
@@ -188,7 +184,8 @@ export class SignatureImageService {
         signerOrder,
         totalSigners,
         totalValidators,
-        totalPages
+        totalPages,
+        heightImage
       );
     } else {
       return this.calculateSignerPosition(
@@ -209,9 +206,17 @@ export class SignatureImageService {
     totalSigners: number,
     totalValidators: number,
     totalPages: number,
+    heightImage: number,
   ): SignaturePosition {
-    const page = totalSigners > 2 ? totalPages - 1 : totalPages;
-    const x = this.MARGIN_LEFT + ((currentOrder - 1) * (this.VALIDATOR_WIDTH + this.HORIZONTAL_GAP));
+    let page: number;
+    if (heightImage >= 25) {
+      page = totalSigners > 2 ? totalPages - 1 : totalPages;
+    } else {
+      const firmasPorPagina = heightImage <= 15 ? 8 : 4;
+      page = totalSigners <= firmasPorPagina ? totalPages : totalPages - 1;
+    }
+
+    const x = this.MARGIN_LEFT + (currentOrder - 1) * (this.VALIDATOR_WIDTH + this.HORIZONTAL_GAP);
     const y = this.VALIDATOR_MARGIN_BOTTOM + this.VALIDATOR_HEIGHT;
 
     return {
@@ -219,7 +224,7 @@ export class SignatureImageService {
       lly: y - this.VALIDATOR_HEIGHT,
       urx: x + this.VALIDATOR_WIDTH,
       ury: y,
-      page: page
+      page: page,
     };
   }
 
@@ -229,27 +234,35 @@ export class SignatureImageService {
     totalSigners: number,
     totalPages: number,
   ): SignaturePosition {
-    const isInPenultimatePage = totalSigners > 2 && currentOrder <= 2;
-    const page = isInPenultimatePage ? totalPages - 1 : totalPages;
+    let page: number;
+    let firmasPorPagina: number;
 
-    // Cálculo de posición X (dos por fila)
+    if (heightImage >= 25) {
+      firmasPorPagina = 2;
+      page = totalSigners > 2 && currentOrder <= 2 ? totalPages - 1 : totalPages;
+    } else {
+      firmasPorPagina = heightImage <= 15 ? 8 : 4;
+      const paginaActual = Math.ceil(currentOrder / firmasPorPagina);
+      const totalPaginas = Math.ceil(totalSigners / firmasPorPagina);
+      page = totalSigners <= firmasPorPagina ? totalPages : totalPages - totalPaginas + paginaActual;
+    }
+
     const x = this.MARGIN_LEFT + (currentOrder % 2 === 0 ? this.SIGNER_WIDTH + this.HORIZONTAL_GAP : 0);
 
-    // Cálculo de posición Y
     let y: number;
-    if (currentOrder <= 2) {
-      // Para las primeras dos firmas
+    if (heightImage >= 25) {
       if (heightImage === 30) {
-        y = this.SIGNER_MARGIN_BOTTOM + this.SIGNER_HEIGHT;
+        y = 200;  // Parte más baja
       } else {
-        y = heightImage > 25 
-          ? 250 + ((30 - heightImage) * 20)
-          : this.PAGE_HEIGHT - 100;
+        y = 200 + (30 - heightImage) * 20;
       }
     } else {
-      // Para tercera firma en adelante: empezar desde arriba y bajar
-      const row = Math.floor((currentOrder - 3) / 2); // Calcular fila
-      y = this.PAGE_HEIGHT - this.MARGIN_TOP - (row * this.ROW_HEIGHT);
+      const row = Math.floor((currentOrder - 1) / 2);
+
+      const baseY = 800 - (heightImage * 20);  // Proporción más natural
+      
+      y = baseY - (row * 100);
+      
     }
 
     return {
@@ -257,7 +270,7 @@ export class SignatureImageService {
       lly: y - this.SIGNER_HEIGHT,
       urx: x + this.SIGNER_WIDTH,
       ury: y,
-      page: page
+      page: page,
     };
   }
 
@@ -269,8 +282,8 @@ export class SignatureImageService {
     signerOrder: number,
     pages: number,
     signerType: string,
-    totalSigners:number,
-    totalValidator:number,
+    totalSigners: number,
+    totalValidator: number,
   ): Promise<string> {
     const combinedImage = await this.createSignatureImage(
       imageBuffer,
@@ -279,7 +292,7 @@ export class SignatureImageService {
       signerType,
     );
     const base64Image = await this.convertImageToBase64(combinedImage);
-    // Calcular posición
+
     console.log('Debug de firma:', {
       orden: signerOrder,
       tipo: signerType,
@@ -287,7 +300,8 @@ export class SignatureImageService {
       totalVisadores: totalValidator,
       paginas: pages,
       altura: heightImage,
-  });
+    });
+
     const position = this.calculateSignaturePosition(
       signerOrder,
       heightImage,
@@ -297,7 +311,6 @@ export class SignatureImageService {
       signerType,
     );
 
-    // Crear XML con las posiciones calculadas
     return `
       <AgileSignerConfig>
         <Application id="THIS-CONFIG">

@@ -12,6 +12,8 @@ import { MD5 } from 'crypto-js';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { throwError } from 'rxjs';
 @Injectable()
 export class AuthService {
   constructor(
@@ -58,8 +60,11 @@ export class AuthService {
     } catch (error) {
       throw new UnauthorizedException('Token expirado o inválido');
     }
-    const isValid = await bcrypt.compare(refreshToken,funcionario?.refreshToken)
-    if (!isValid ) {
+    const isValid = await bcrypt.compare(
+      refreshToken,
+      funcionario?.refreshToken,
+    );
+    if (!isValid) {
       throw new UnauthorizedException('Token inválido');
     }
     return this.generateTokens(funcionario);
@@ -113,5 +118,26 @@ export class AuthService {
     } catch (error) {
       throw new BadRequestException('Error al cerrar sesión');
     }
+  }
+
+  async changePassword(input: ChangePasswordDto) {
+    const { password, passwordConfirm, rut } = input;
+
+    const funcionario = await this.funcionarioRepository.findOne({
+      where: { rut },
+    });
+    if (!funcionario) {
+      throw new NotFoundException('usuario no encontrado');
+    }
+
+    if (password !== passwordConfirm) {
+      throw new BadRequestException('contraseñas no coinciden');
+    }
+
+    const hashedNewPassword = await bcrypt.hash(password, 10);
+    await this.funcionarioRepository.update(rut, {
+      password: hashedNewPassword,
+    });
+    return { message: 'contraseña de usuario actualizada correctamente' };
   }
 }

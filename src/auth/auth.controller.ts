@@ -19,6 +19,10 @@ import { RegisterDto } from './dto/register.dto';
 import { Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
+import { Roles } from './roles.decorator';
+import { Rol } from 'src/enums/rol.enum';
+import { RolesGuard } from './roles.guard';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -157,5 +161,39 @@ export class AuthController {
   @UseGuards(AuthGuard('jwt-refresh'))
   checkAuth() {
     return { isAuthenticated: true };
+  }
+
+  @Post('change-password')
+  @Roles(Rol.ADMIN)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  async changePassword(@Body() changePasswordDto: ChangePasswordDto) {
+    try {
+      await this.authService.changePassword(changePasswordDto);
+      
+      return {
+        statusCode: 200,
+        message: 'Contraseña actualizada correctamente'
+      };
+  
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw new HttpException({
+          statusCode: HttpStatus.NOT_FOUND,
+          message: error.message
+        }, HttpStatus.NOT_FOUND);
+      }
+      
+      if (error instanceof BadRequestException) {
+        throw new HttpException({
+          statusCode: HttpStatus.BAD_REQUEST,
+          message: error.message
+        }, HttpStatus.BAD_REQUEST);
+      }
+  
+      throw new HttpException({
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Error al actualizar la contraseña'
+      }, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 }

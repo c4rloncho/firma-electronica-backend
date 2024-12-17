@@ -125,11 +125,8 @@ export class DocumentoService {
           signers,
         );
 
-        //modifical documento
-        const totalFirmas = signers.length;
-        //calcular total de firmadores
-        const firmadores = this.countSigners(signers);
-        await this.modifyDocument(totalFirmas, file, heightSigns,firmadores);
+    
+        await this.modifyDocument(file, heightSigns,document.totalSigners);
         // Guardar el archivo
         await this.saveFile(file, randomName);
 
@@ -137,55 +134,38 @@ export class DocumentoService {
       },
     );
   }
-  private countSigners(signers:SignerDto[]){
-    let total =0
-    signers.map((s)=>{
-      if(s.type === 'firmador'){
-        total++
-      }
-    })
-    return total
-  }
   async modifyDocument(
-    totalSignatures: number,
     file: Express.Multer.File,
     heightSigns: number,
-    firmadores:number
-  ): Promise<void> {
+    totalSigners: number,
+): Promise<void> {
     try {
-      const existingPdfBytes = file.buffer;
-      const pdfDoc = await PDFDocument.load(existingPdfBytes);
+        const existingPdfBytes = file.buffer;
+        const pdfDoc = await PDFDocument.load(existingPdfBytes);
+        const firstPage = pdfDoc.getPage(0);
+        const { width, height } = firstPage.getSize();
 
-      // Obtener el tamaño de la primera página
-      const firstPage = pdfDoc.getPage(0);
-      const { width, height } = firstPage.getSize();
+        // Si la altura es alta (≥25), máximo 2 firmas por página
+        if (heightSigns >= 25) {
+            if (totalSigners > 2) {
+                pdfDoc.addPage([width, height]);
+            }
+        } else {
+            // Para alturas bajas, calcular según espacio disponible
+            const firmasPorPagina = heightSigns <= 15 ? 8 : 4;  
+            
+            if (totalSigners > firmasPorPagina) {
+                pdfDoc.addPage([width, height]);
+            }
+        }
 
-      const SIGNATURES_PER_ROW = 2;
-      const availableRows = heightSigns >= 25 ? 1 : 3; // Por ejemplo, 3 filas si está arriba
-      const signaturesInFirstPage = availableRows * SIGNATURES_PER_ROW;
-
-      // Recalcular páginas necesarias
-      const remainingSignatures = Math.max(
-        0,
-        totalSignatures - signaturesInFirstPage,
-      );
-      const signaturesPerPage = 8; // 2 filas de 2 firmas en páginas adicionales
-      const additionalPagesNeeded = Math.ceil(
-        remainingSignatures / signaturesPerPage,
-      );
-
-      // Añadir páginas necesarias con el mismo tamaño
-      for (let i = 0; i < additionalPagesNeeded; i++) {
-        pdfDoc.addPage([width, height]);
-      }
-
-      const modifiedPdfBytes = await pdfDoc.save();
-      file.buffer = Buffer.from(modifiedPdfBytes);
-      file.size = modifiedPdfBytes.length;
+        const modifiedPdfBytes = await pdfDoc.save();
+        file.buffer = Buffer.from(modifiedPdfBytes);
+        file.size = modifiedPdfBytes.length;
     } catch (error) {
-      throw new Error('Error al modificar el documento PDF');
+        throw new Error('Error al modificar el documento PDF');
     }
-  }
+}
   private verifyUniqueRuts(signers: SignerDto[]): void {
     const ruts = signers.map((signer) => signer.rut);
     const uniqueRuts = new Set(ruts);
